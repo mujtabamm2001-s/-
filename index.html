@@ -131,6 +131,22 @@
       position: relative;
     }
 
+    @media (max-width: 639px) {
+      .pin-badge {
+        width: 26px;
+        height: 26px;
+        font-size: 11px;
+      }
+      .pin-label {
+        font-size: 10px;
+        padding: 2px 7px;
+        border-radius: 8px;
+        max-width: 115px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+    }
+
     .pin-badge::after {
       content: '';
       position: absolute;
@@ -546,23 +562,23 @@
   <!-- Bottom Camera Presets & Interaction Hint Bar (Purple & White) -->
   <footer class="fixed bottom-3 left-3 right-3 z-20 flex flex-col sm:flex-row items-center justify-between gap-2 pointer-events-none">
     <!-- Camera Presets -->
-    <div class="glass-panel p-1.5 rounded-2xl flex flex-wrap items-center justify-center gap-1.5 pointer-events-auto">
+    <div class="glass-panel p-1.5 rounded-2xl flex flex-wrap sm:flex-wrap items-center justify-start sm:justify-center gap-1.5 pointer-events-auto max-w-full overflow-x-auto">
       <span class="text-[11px] text-purple-200 px-2 hidden md:inline">
         <i class="fa-solid fa-video text-white ml-1"></i>زوايا الرؤية:
       </span>
-      <button data-preset="overview" class="cam-preset-btn active px-3 py-1.5 rounded-xl bg-white text-purple-900 text-xs transition shadow">
+      <button data-preset="overview" class="cam-preset-btn active px-2.5 sm:px-3 py-1.5 rounded-xl bg-white text-purple-900 text-[11px] sm:text-xs whitespace-nowrap transition shadow">
         نظرة شاملة
       </button>
-      <button data-preset="surgical" class="cam-preset-btn px-3 py-1.5 rounded-xl bg-purple-950/80 hover:bg-white hover:text-purple-900 text-white text-xs transition">
+      <button data-preset="surgical" class="cam-preset-btn px-2.5 sm:px-3 py-1.5 rounded-xl bg-purple-950/80 hover:bg-white hover:text-purple-900 text-white text-[11px] sm:text-xs whitespace-nowrap transition">
         منطقة الجراحة
       </button>
-      <button data-preset="anesthesia" class="cam-preset-btn px-3 py-1.5 rounded-xl bg-purple-950/80 hover:bg-white hover:text-purple-900 text-white text-xs transition">
+      <button data-preset="anesthesia" class="cam-preset-btn px-2.5 sm:px-3 py-1.5 rounded-xl bg-purple-950/80 hover:bg-white hover:text-purple-900 text-white text-[11px] sm:text-xs whitespace-nowrap transition">
         التخدير والأذرع
       </button>
-      <button data-preset="hvac" class="cam-preset-btn px-3 py-1.5 rounded-xl bg-purple-950/80 hover:bg-white hover:text-purple-900 text-white text-xs transition">
+      <button data-preset="hvac" class="cam-preset-btn px-2.5 sm:px-3 py-1.5 rounded-xl bg-purple-950/80 hover:bg-white hover:text-purple-900 text-white text-[11px] sm:text-xs whitespace-nowrap transition">
         السقف وفلتر HEPA
       </button>
-      <button data-preset="walls" class="cam-preset-btn px-3 py-1.5 rounded-xl bg-purple-950/80 hover:bg-white hover:text-purple-900 text-white text-xs transition">
+      <button data-preset="walls" class="cam-preset-btn px-2.5 sm:px-3 py-1.5 rounded-xl bg-purple-950/80 hover:bg-white hover:text-purple-900 text-white text-[11px] sm:text-xs whitespace-nowrap transition">
         لوحة التحكم والجدران
       </button>
     </div>
@@ -3212,12 +3228,12 @@
         }
         if (obj && obj.name) {
           const foundIdx = OR_COMPONENTS_DATA.findIndex(p => p.id === obj.name);
-          if (foundIdx !== -1) {
-            selectComponent(foundIdx);
-          }
+        if (foundIdx !== -1) {
+          selectComponent(foundIdx);
         }
       }
-    });
+    }
+  });
 
     const CAMERA_PRESETS = {
       overview:   { pos: new THREE.Vector3(4.3, 2.7, 4.3), target: new THREE.Vector3(0, 1.1, 0) },
@@ -3471,6 +3487,9 @@
       camera.aspect = window.innerWidth / window.innerHeight;
       camera.updateProjectionMatrix();
       renderer.setSize(window.innerWidth, window.innerHeight);
+      if (window.innerWidth < 640 && selectedPartIndex === -1) {
+        indexDrawer.classList.add('closed');
+      }
     });
 
     window.onload = function () {

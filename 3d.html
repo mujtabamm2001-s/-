@@ -1,0 +1,2894 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>المحاكي الهندسي والطبي ثلاثي الأبعاد لغرفة العمليات (3D Operating Room)</title>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Google Fonts: Tajawal (including Black 900 weight) for clean Arabic typography -->
+  <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800;900&display=swap" rel="stylesheet">
+  <!-- Font Awesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <!-- Three.js & OrbitControls -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+
+  <style>
+    * {
+      font-family: 'Tajawal', sans-serif !important;
+      font-weight: 900 !important;
+      box-sizing: border-box;
+    }
+
+    body, html {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background-color: #0b1320;
+      color: #ffffff;
+      user-select: none;
+    }
+
+    #canvas-container {
+      position: fixed;
+      inset: 0;
+      width: 100vw;
+      height: 100vh;
+      z-index: 1;
+    }
+
+    /* Glassmorphism Panels - Purple & White Theme */
+    .glass-panel {
+      background: linear-gradient(145deg, rgba(59, 7, 100, 0.92), rgba(88, 28, 135, 0.88));
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1.5px solid rgba(255, 255, 255, 0.35);
+      box-shadow: 0 12px 32px rgba(46, 16, 101, 0.65);
+    }
+
+    .glass-card {
+      background: rgba(255, 255, 255, 0.12);
+      border: 1px solid rgba(255, 255, 255, 0.25);
+      transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .glass-card:hover {
+      background: rgba(255, 255, 255, 0.24);
+      border-color: #ffffff;
+      transform: translateY(-2px);
+    }
+
+    .glass-card.active {
+      background: #ffffff;
+      color: #581c87 !important;
+      border-color: #ffffff;
+      box-shadow: 0 0 18px rgba(255, 255, 255, 0.55);
+    }
+
+    .glass-card.active h4,
+    .glass-card.active p,
+    .glass-card.active i {
+      color: #581c87 !important;
+    }
+
+    /* Custom Scrollbar */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: rgba(59, 7, 100, 0.4);
+    }
+    ::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.55);
+      border-radius: 9999px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #ffffff;
+    }
+
+    /* 3D Projected Hotspot Pins - Purple & White */
+    #hotspots-layer {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 10;
+      overflow: hidden;
+    }
+
+    .hotspot-pin {
+      position: absolute;
+      transform: translate(-50%, -50%);
+      pointer-events: auto;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: transform 0.2s ease, opacity 0.25s ease;
+    }
+
+    .hotspot-pin:hover {
+      z-index: 30;
+      transform: translate(-50%, -50%) scale(1.12);
+    }
+
+    .pin-badge {
+      width: 32px;
+      height: 32px;
+      border-radius: 9999px;
+      background: linear-gradient(135deg, #7e22ce, #581c87);
+      color: #ffffff;
+      font-weight: 900;
+      font-size: 13px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border: 2px solid #ffffff;
+      box-shadow: 0 0 15px rgba(168, 85, 247, 0.9);
+      position: relative;
+    }
+
+    .pin-badge::after {
+      content: '';
+      position: absolute;
+      inset: -5px;
+      border-radius: 9999px;
+      border: 2px solid rgba(255, 255, 255, 0.75);
+      animation: pulseRing 2s infinite;
+    }
+
+    .hotspot-pin.selected .pin-badge {
+      background: #ffffff;
+      color: #6b21a8;
+      border-color: #a855f7;
+      box-shadow: 0 0 20px rgba(255, 255, 255, 0.95);
+    }
+
+    .pin-label {
+      background: #ffffff;
+      color: #4c1d95;
+      padding: 4px 12px;
+      border-radius: 10px;
+      font-size: 12px;
+      font-weight: 900;
+      white-space: nowrap;
+      border: 1.5px solid #9333ea;
+      box-shadow: 0 4px 14px rgba(59, 7, 100, 0.45);
+      opacity: 0.96;
+    }
+
+    .hotspot-pin:hover .pin-label,
+    .hotspot-pin.selected .pin-label {
+      background: #6b21a8;
+      color: #ffffff;
+      border-color: #ffffff;
+    }
+
+    @keyframes pulseRing {
+      0% { transform: scale(0.9); opacity: 0.9; }
+      70% { transform: scale(1.45); opacity: 0; }
+      100% { transform: scale(1.45); opacity: 0; }
+    }
+
+    /* Drawer Transitions */
+    .drawer-right {
+      transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .drawer-right.closed {
+      transform: translateX(110%);
+    }
+
+    .drawer-left {
+      transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .drawer-left.closed {
+      transform: translateX(-110%);
+    }
+
+    /* Loading Overlay */
+    #loader {
+      position: fixed;
+      inset: 0;
+      z-index: 100;
+      background: radial-gradient(circle at center, #3b0764 0%, #1e1b4b 100%);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      transition: opacity 0.5s ease;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Loading Screen -->
+  <div id="loader">
+    <div class="w-16 h-16 border-4 border-white/30 border-t-white rounded-full animate-spin mb-4"></div>
+    <h2 class="text-xl text-white mb-1">جاري بناء نموذج غرفة العمليات ثلاثي الأبعاد...</h2>
+    <p class="text-sm text-purple-200">تجهيز الأنظمة الطبية، التدفق الصفائحي HEPA، والمعدات الجراحية</p>
+  </div>
+
+  <!-- 3D WebGL Canvas Container -->
+  <div id="canvas-container"></div>
+
+  <!-- 3D Projected HTML Hotspots Layer -->
+  <div id="hotspots-layer"></div>
+
+  <!-- Top Header Bar -->
+  <header class="fixed top-3 left-3 right-3 z-20 flex flex-wrap items-center justify-between gap-2 pointer-events-none">
+    <!-- Brand & Title -->
+    <div class="glass-panel px-4 py-2.5 rounded-2xl flex items-center gap-3 pointer-events-auto">
+      <div class="w-10 h-10 rounded-xl bg-white text-purple-900 flex items-center justify-center shadow-lg">
+        <i class="fa-solid fa-hospital-user text-lg"></i>
+      </div>
+      <div>
+        <h1 class="text-sm sm:text-base text-white leading-tight">نموذج غرفة العمليات الجراحية 3D</h1>
+        <p class="text-[11px] text-purple-200">التصميم المعماري والأنظمة الهندسية والطبية (ASHRAE 170 / NFPA 99 / FGI)</p>
+      </div>
+    </div>
+
+    <!-- Quick Toggles & Tour Controls -->
+    <div class="glass-panel px-3 py-2 rounded-2xl flex flex-wrap items-center gap-2 pointer-events-auto">
+      <button id="btn-toggle-index" class="px-3 py-1.5 rounded-xl bg-white hover:bg-purple-100 text-xs text-purple-900 border border-white flex items-center gap-1.5 transition shadow">
+        <i class="fa-solid fa-list-ul"></i>
+        <span>فهرس الأجزاء (11)</span>
+      </button>
+
+      <button id="btn-toggle-airflow" class="px-3 py-1.5 rounded-xl bg-purple-700 hover:bg-purple-600 text-xs text-white border border-white/40 flex items-center gap-1.5 transition shadow">
+        <i class="fa-solid fa-wind"></i>
+        <span id="airflow-btn-text">إخفاء تدفق الهواء HEPA</span>
+      </button>
+
+      <button id="btn-toggle-pins" class="px-3 py-1.5 rounded-xl bg-purple-900/90 hover:bg-purple-800 text-xs text-white border border-white/40 flex items-center gap-1.5 transition">
+        <i class="fa-solid fa-map-pin text-purple-200"></i>
+        <span id="pins-btn-text">إخفاء المؤشرات</span>
+      </button>
+
+      <div class="h-5 w-[1px] bg-white/30 hidden sm:block"></div>
+
+      <!-- Guided Tour Controls -->
+      <div class="flex items-center gap-1 bg-purple-950/80 p-1 rounded-xl border border-white/30">
+        <button id="btn-prev-part" title="الجزء السابق" class="px-2.5 py-1 rounded-lg hover:bg-white hover:text-purple-900 text-white text-xs transition">
+          <i class="fa-solid fa-chevron-right"></i> السابق
+        </button>
+        <span id="tour-indicator" class="px-2 text-[11px] text-purple-100">جولة تفاعلية</span>
+        <button id="btn-next-part" title="الجزء التالي" class="px-2.5 py-1 rounded-lg hover:bg-white hover:text-purple-900 text-white text-xs transition">
+          التالي <i class="fa-solid fa-chevron-left"></i>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Right Sidebar: Index of OR Systems/Equipment (Purple & White) -->
+  <aside id="index-drawer" class="drawer-right fixed top-20 right-3 bottom-20 w-72 sm:w-80 glass-panel rounded-2xl z-20 flex flex-col overflow-hidden">
+    <div class="p-3.5 border-b border-white/25 flex items-center justify-between bg-purple-950/60">
+      <div class="flex items-center gap-2">
+        <i class="fa-solid fa-layer-group text-white"></i>
+        <h2 class="text-sm text-white">مكونات وأنظمة غرفة العمليات</h2>
+      </div>
+      <button id="close-index-btn" class="w-7 h-7 rounded-lg bg-white/15 hover:bg-white text-white hover:text-purple-900 flex items-center justify-center transition">
+        <i class="fa-solid fa-xmark text-xs"></i>
+      </button>
+    </div>
+
+    <div class="p-2.5 bg-white/10 border-b border-white/20 text-[11px] text-purple-100 flex items-center gap-2">
+      <i class="fa-solid fa-hand-pointer text-white"></i>
+      <span>اضغط على أي عنصر في القائمة أو في المجسم ثلاثي الأبعاد لعرض الشرح الهندسي والطبي.</span>
+    </div>
+
+    <div id="parts-list" class="flex-1 overflow-y-auto p-2.5 space-y-2">
+      <!-- Populated dynamically via JS -->
+    </div>
+  </aside>
+
+  <!-- Left Sidebar: Detailed Engineering & Medical Inspector Drawer (Purple & White Theme) -->
+  <aside id="detail-drawer" class="drawer-left closed fixed top-20 left-3 bottom-20 w-[92vw] sm:w-[430px] bg-white text-purple-950 border-2 border-purple-700 shadow-2xl rounded-2xl z-30 flex flex-col overflow-hidden">
+    <!-- Header (Deep Purple with White Text) -->
+    <div class="p-4 border-b border-purple-200 bg-gradient-to-l from-purple-900 via-purple-800 to-purple-700 flex items-start justify-between gap-2">
+      <div class="flex items-center gap-3">
+        <div id="detail-number" class="w-10 h-10 rounded-xl bg-white text-purple-900 text-lg flex items-center justify-center shadow-lg shrink-0">
+          1
+        </div>
+        <div>
+          <span id="detail-category" class="text-[11px] uppercase tracking-wider text-purple-200 block">التجهيزات الجراحية</span>
+          <h2 id="detail-title" class="text-base sm:text-lg text-white leading-snug">طاولة العمليات الجراحية</h2>
+          <p id="detail-en-title" class="text-xs text-purple-200" dir="ltr">Surgical Operating Table</p>
+        </div>
+      </div>
+      <button id="close-detail-btn" class="w-8 h-8 rounded-xl bg-white/20 hover:bg-white text-white hover:text-purple-900 flex items-center justify-center transition shrink-0">
+        <i class="fa-solid fa-xmark"></i>
+      </button>
+    </div>
+
+    <!-- Scrollable Detailed Content (Clean White Cards with Purple Accents) -->
+    <div id="detail-content" class="flex-1 overflow-y-auto p-4 space-y-3.5 text-sm leading-relaxed bg-purple-50/70">
+      <!-- Section 1: Function -->
+      <div class="bg-white rounded-xl p-3.5 border border-purple-200 shadow-sm">
+        <h3 class="text-purple-800 text-xs mb-1.5 flex items-center gap-1.5">
+          <i class="fa-solid fa-stethoscope text-purple-600"></i>
+          <span>الوظيفة الطبية والهندسية</span>
+        </h3>
+        <p id="detail-function" class="text-slate-800 text-xs sm:text-[13px]"></p>
+      </div>
+
+      <!-- Section 2: Components & Working Principle -->
+      <div class="bg-white rounded-xl p-3.5 border border-purple-200 shadow-sm">
+        <h3 class="text-purple-800 text-xs mb-1.5 flex items-center gap-1.5">
+          <i class="fa-solid fa-gears text-purple-600"></i>
+          <span>المكونات الهندسية وآلية العمل</span>
+        </h3>
+        <ul id="detail-components" class="list-disc list-inside space-y-1.5 text-slate-800 text-xs sm:text-[13px]"></ul>
+      </div>
+
+      <!-- Section 3: Standards & Technical Specs -->
+      <div class="bg-purple-100/80 rounded-xl p-3.5 border border-purple-300 shadow-sm">
+        <h3 class="text-purple-900 text-xs mb-1.5 flex items-center gap-1.5">
+          <i class="fa-solid fa-ruler-combined text-purple-700"></i>
+          <span>المواصفات الفنية والمعايير العالمية</span>
+        </h3>
+        <div id="detail-specs" class="space-y-1.5 text-purple-950 text-xs sm:text-[13px]"></div>
+      </div>
+
+      <!-- Section 4: Safety & Maintenance -->
+      <div class="bg-white rounded-xl p-3.5 border-r-4 border-r-purple-700 border border-purple-200 shadow-sm">
+        <h3 class="text-purple-900 text-xs mb-1.5 flex items-center gap-1.5">
+          <i class="fa-solid fa-shield-halved text-purple-700"></i>
+          <span>متطلبات السلامة والتعقيم والصيانة</span>
+        </h3>
+        <p id="detail-safety" class="text-slate-800 text-xs sm:text-[13px]"></p>
+      </div>
+    </div>
+
+    <!-- Interactive Operating Table Remote Control Panel (Purple & White) -->
+    <div id="table-remote-panel" class="hidden mx-4 mb-3 p-3.5 rounded-xl bg-purple-900 text-white border border-purple-400 shadow-lg">
+      <div class="flex items-center justify-between mb-2.5 border-b border-purple-700 pb-2">
+        <div class="flex items-center gap-2">
+          <span class="w-2.5 h-2.5 rounded-full bg-white animate-pulse"></span>
+          <h4 class="text-xs text-white">جهاز التحكم اليدوي للطاولة (Hand Control)</h4>
+        </div>
+        <button id="btn-table-reset" class="px-2.5 py-0.5 rounded bg-white hover:bg-purple-100 text-[11px] text-purple-900 transition">
+          <i class="fa-solid fa-rotate-left ml-1"></i>وضع الصفر (0°)
+        </button>
+      </div>
+
+      <div class="grid grid-cols-2 gap-2 text-[11px]">
+        <!-- Height Up/Down -->
+        <div class="bg-purple-950/70 p-2 rounded-lg border border-purple-700 flex flex-col items-center">
+          <span class="text-purple-200 mb-1.5">الارتفاع (Height)</span>
+          <div class="flex items-center gap-1.5 w-full">
+            <button data-table-cmd="heightUp" class="table-ctrl-btn flex-1 py-1.5 rounded bg-white/15 hover:bg-white text-white hover:text-purple-900 transition">
+              <i class="fa-solid fa-arrow-up"></i> رفع
+            </button>
+            <button data-table-cmd="heightDown" class="table-ctrl-btn flex-1 py-1.5 rounded bg-white/15 hover:bg-white text-white hover:text-purple-900 transition">
+              <i class="fa-solid fa-arrow-down"></i> خفض
+            </button>
+          </div>
+        </div>
+
+        <!-- Trendelenburg / Reverse -->
+        <div class="bg-purple-950/70 p-2 rounded-lg border border-purple-700 flex flex-col items-center">
+          <span class="text-purple-200 mb-1.5">الإمالة الطولية (Trend.)</span>
+          <div class="flex items-center gap-1.5 w-full">
+            <button data-table-cmd="trendHeadDown" class="table-ctrl-btn flex-1 py-1.5 rounded bg-white/15 hover:bg-white text-white hover:text-purple-900 transition">
+              <i class="fa-solid fa-angle-down"></i> رأس أسفل
+            </button>
+            <button data-table-cmd="trendHeadUp" class="table-ctrl-btn flex-1 py-1.5 rounded bg-white/15 hover:bg-white text-white hover:text-purple-900 transition">
+              <i class="fa-solid fa-angle-up"></i> رأس أعلى
+            </button>
+          </div>
+        </div>
+
+        <!-- Lateral Tilt Left/Right -->
+        <div class="bg-purple-950/70 p-2 rounded-lg border border-purple-700 flex flex-col items-center">
+          <span class="text-purple-200 mb-1.5">الإمالة الجانبية (Tilt)</span>
+          <div class="flex items-center gap-1.5 w-full">
+            <button data-table-cmd="tiltLeft" class="table-ctrl-btn flex-1 py-1.5 rounded bg-white/15 hover:bg-white text-white hover:text-purple-900 transition">
+              <i class="fa-solid fa-rotate-left"></i> يسار
+            </button>
+            <button data-table-cmd="tiltRight" class="table-ctrl-btn flex-1 py-1.5 rounded bg-white/15 hover:bg-white text-white hover:text-purple-900 transition">
+              <i class="fa-solid fa-rotate-right"></i> يمين
+            </button>
+          </div>
+        </div>
+
+        <!-- Backrest Section Up/Down -->
+        <div class="bg-purple-950/70 p-2 rounded-lg border border-purple-700 flex flex-col items-center">
+          <span class="text-purple-200 mb-1.5">مسند الظهر (Backrest)</span>
+          <div class="flex items-center gap-1.5 w-full">
+            <button data-table-cmd="backUp" class="table-ctrl-btn flex-1 py-1.5 rounded bg-white/15 hover:bg-white text-white hover:text-purple-900 transition">
+              <i class="fa-solid fa-chevron-up"></i> رفع
+            </button>
+            <button data-table-cmd="backDown" class="table-ctrl-btn flex-1 py-1.5 rounded bg-white/15 hover:bg-white text-white hover:text-purple-900 transition">
+              <i class="fa-solid fa-chevron-down"></i> خفض
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Footer Navigation inside Drawer -->
+    <div class="p-3 border-t border-purple-200 bg-white flex items-center justify-between gap-2">
+      <button id="drawer-prev-btn" class="flex-1 py-2 px-3 rounded-xl bg-purple-100 hover:bg-purple-200 text-xs text-purple-900 flex items-center justify-center gap-1.5 transition">
+        <i class="fa-solid fa-arrow-right"></i> الجزء السابق
+      </button>
+      <button id="drawer-focus-btn" class="py-2 px-3 rounded-xl bg-purple-100 hover:bg-purple-200 border border-purple-300 text-xs text-purple-900 flex items-center justify-center gap-1.5 transition">
+        <i class="fa-solid fa-crosshairs"></i> تركيز الكاميرا
+      </button>
+      <button id="drawer-next-btn" class="flex-1 py-2 px-3 rounded-xl bg-gradient-to-l from-purple-800 to-purple-600 hover:from-purple-700 hover:to-purple-500 text-xs text-white flex items-center justify-center gap-1.5 transition shadow">
+        الجزء التالي <i class="fa-solid fa-arrow-left"></i>
+      </button>
+    </div>
+  </aside>
+
+  <!-- Bottom Camera Presets & Interaction Hint Bar (Purple & White) -->
+  <footer class="fixed bottom-3 left-3 right-3 z-20 flex flex-col sm:flex-row items-center justify-between gap-2 pointer-events-none">
+    <!-- Camera Presets -->
+    <div class="glass-panel p-1.5 rounded-2xl flex flex-wrap items-center justify-center gap-1.5 pointer-events-auto">
+      <span class="text-[11px] text-purple-200 px-2 hidden md:inline">
+        <i class="fa-solid fa-video text-white ml-1"></i>زوايا الرؤية:
+      </span>
+      <button data-preset="overview" class="cam-preset-btn active px-3 py-1.5 rounded-xl bg-white text-purple-900 text-xs transition shadow">
+        نظرة شاملة
+      </button>
+      <button data-preset="surgical" class="cam-preset-btn px-3 py-1.5 rounded-xl bg-purple-950/80 hover:bg-white hover:text-purple-900 text-white text-xs transition">
+        منطقة الجراحة
+      </button>
+      <button data-preset="anesthesia" class="cam-preset-btn px-3 py-1.5 rounded-xl bg-purple-950/80 hover:bg-white hover:text-purple-900 text-white text-xs transition">
+        التخدير والأذرع
+      </button>
+      <button data-preset="hvac" class="cam-preset-btn px-3 py-1.5 rounded-xl bg-purple-950/80 hover:bg-white hover:text-purple-900 text-white text-xs transition">
+        السقف وفلتر HEPA
+      </button>
+      <button data-preset="walls" class="cam-preset-btn px-3 py-1.5 rounded-xl bg-purple-950/80 hover:bg-white hover:text-purple-900 text-white text-xs transition">
+        لوحة التحكم والجدران
+      </button>
+    </div>
+
+    <!-- Controls Help Pill -->
+    <div class="glass-panel px-3.5 py-2 rounded-2xl text-[11px] text-white hidden lg:flex items-center gap-3 pointer-events-auto">
+      <span><i class="fa-solid fa-computer-mouse text-purple-200 ml-1"></i>سحب يسار: تدوير</span>
+      <span><i class="fa-solid fa-magnifying-glass-plus text-purple-200 ml-1"></i>عجلة الماوس: تقريب</span>
+      <span><i class="fa-solid fa-arrows-up-down-left-right text-purple-200 ml-1"></i>سحب يمين: تحريك</span>
+    </div>
+  </footer>
+
+  <script>
+    /**
+     * ============================================================================
+     * 1. قاعدة البيانات الهندسية والطبية الشاملة لكل أجزاء غرفة العمليات (10 أنظمة)
+     * ============================================================================
+     */
+    const OR_COMPONENTS_DATA = [
+      {
+        id: 'operating_table',
+        number: 1,
+        category: 'التجهيزات الجراحية الأساسية',
+        title: 'طاولة العمليات الجراحية',
+        enTitle: 'Electro-Hydraulic Surgical Operating Table',
+        icon: 'fa-bed-pulse',
+        pinOffset: new THREE.Vector3(0, 1.15, 0),
+        camPos: new THREE.Vector3(2.3, 1.85, 2.2),
+        camTarget: new THREE.Vector3(0, 0.9, 0),
+        functionDesc: 'تُعد نقطة الارتكاز المركزية في غرفة العمليات؛ حيث توفر وضعية مستقرة وآمنة للمريض وتتيح للجراح الوصول المثالي لموقع الجراحة عبر إمالتها وتعديل ارتفاعها وزواياها بدقة متناهية.',
+        components: [
+          'قاعدة ثقيلة من الفولاذ المقاوم للصدأ (Stainless Steel 316L) مزودة بمكابح كهروميكانيكية لتثبيت الطاولة ومنع انزلاقها.',
+          'عمود مركزي هيدروليكي/كهربائي للتحكم بالارتفاع (من 60 سم إلى 110 سم) والإمالة الجانبية (Tilt) والطولية (Trendelenburg).',
+          'جهاز تحكم يدوي سلكي (Corded Hand Control Pendant) مضاد للماء (IPX6) بأزرار مضيئة مع لوحة تحكم احتياطية مدمجة في عمود الطاولة (Override Panel).',
+          'سطح مفصلي مقسم إلى 5 أجزاء (الرأس، الظهر، الحوض، الساقين) مصنوع من ألياف الكربون المنفذة للأشعة السينية (Radiolucent) للسماح بالتصوير بجهاز C-Arm أثناء الجراحة.',
+          'وسائد طبية عالية الكثافة مضادة للكهرباء الساكنة (Antistatic) ومقاومة للسوائل وتمنع قرح الضغط، مع مساند جانبية للذراعين.'
+        ],
+        specs: [
+          'القدرة التحميلية: تتحمل أوزاناً تتراوح بين 250 كغم إلى 450 كغم في الوضعيات المختلفة.',
+          'بطارية احتياطية مدمجة تعمل لمدة أسبوع كامل في حال انقطاع التيار الكهربائي.',
+          'المعايير المعتمدة: IEC 60601-2-46 الخاصة بسلامة طاولات العمليات الجراحية.'
+        ],
+        safety: 'يجب التأكد من قفل المكابح الأرضية قبل نقل المريض، وربط كابل التأريض المعادل للجهد (Equipotential Grounding)، وتطهير الوسائد بمحاليل غير مسببة للتآكل بعد كل عملية.'
+      },
+      {
+        id: 'surgical_lights',
+        number: 2,
+        category: 'أنظمة الإضاءة الطبية',
+        title: 'مصابيح العمليات السقفية عديمة الظل',
+        enTitle: 'Dual-Arm Shadowless LED Surgical Lights',
+        icon: 'fa-lightbulb',
+        pinOffset: new THREE.Vector3(0.45, 2.35, 0.2),
+        camPos: new THREE.Vector3(2.5, 2.4, 2.3),
+        camTarget: new THREE.Vector3(0.2, 2.1, 0),
+        functionDesc: 'توفير إضاءة عالية الشدة ومركزة داخل التجويف الجراحي العميق دون تكوين ظلال ناتجة عن رأس الجراح أو يديه، ودون انبعاث حرارة تؤدي إلى جفاف أنسجة المريض.',
+        components: [
+          'مظلتان ضوئيتان (Main & Satellite Domes) معلقتان على أذرع مفصلية متوازنة تدور 360 درجة بسلاسة.',
+          'مصفوفات LED متعددة العدسات تسلط الضوء من زوايا متقاطعة لإلغاء الظلال (Shadow Dilution).',
+          'مقبض مركزي قابل للفك والتعقيم بالبخار (Autoclavable Sterile Handle) يتيح للجراح توجيه الضوء بنفسه دون تلويث يديه.',
+          'نظام إضاءة محيطية خضراء (Endo Mode) تُستخدم أثناء جراحات المناظير لتقليل انعكاس الشاشة.'
+        ],
+        specs: [
+          'شدة الإضاءة المركزية: من 100,000 إلى 160,000 لوكس (Lux) على مسافة 1 متر.',
+          'مؤشر تجسيد الألوان (CRI / Ra): أعلى من 95 لإظهار الألوان الحقيقية للأنسجة والأوعية الدموية بدقة.',
+          'درجة حرارة اللون (Color Temperature): قابلة للتعديل بين 3500K و 5000K.',
+          'المعايير: IEC 60601-2-41.'
+        ],
+        safety: 'تصميم انسيابي مفتوح أو قليل المقاومة لكي لا يعيق تدفق الهواء الصفائحي النازل من السقف، مع وجود بطارية طوارئ تضمن استمرار الإضاءة فوراً عند انقطاع الكهرباء.'
+      },
+      {
+        id: 'laminar_hepa',
+        number: 3,
+        category: 'التكييف والتحكم بالعدوى (HVAC)',
+        title: 'نظام التدفق الصفائحي وفلاتر HEPA',
+        enTitle: 'Laminar Airflow (LAF) Ceiling Canopy & HEPA Filters',
+        icon: 'fa-wind',
+        pinOffset: new THREE.Vector3(0, 3.15, 0),
+        camPos: new THREE.Vector3(3.1, 2.8, 3.1),
+        camTarget: new THREE.Vector3(0, 2.6, 0),
+        functionDesc: 'إنشاء ستارة هوائية معقمة تتحرك من الأعلى إلى الأسفل بسرعة منتظمة فوق طاولة العمليات وطاولات الأدوات المعقمة، مما يدفع الجسيمات والبكتيريا بعيداً عن الجرح المفتوح ويمنع دخول الهواء الملوث من محيط الغرفة.',
+        components: [
+          'وحدة سقفية (LAF Canopy) بأبعاد لا تقل عن 2.8م × 2.8م أو 3.2م × 3.2م تغطي المنطقة الجراحية بالكامل.',
+          'فلاتر هواء عالية الكفاءة (HEPA H14) تحجز 99.995% من الجسيمات بحجم 0.3 ميكرون (البكتيريا والفيروسات).',
+          'ناشرات هواء مثقبة (Perforated Diffusers) تضمن توزيع الهواء بتدفق صفائحي غير مضطرب (Unidirectional Laminar Flow).',
+          'حساسات قياس فرق الضغط عبر الفلاتر لتنبيه قسم الصيانة عند الحاجة لاستبدالها.'
+        ],
+        specs: [
+          'معدل تغيير الهواء (ACH): من 20 إلى 25 مرة في الساعة كحد أدنى (وقد يصل إلى 40-60 في جراحات العظام وزراعة الأعضاء).',
+          'الضغط الموجب (Positive Pressure): +2.5 إلى +15 باسكال مقارنة بالممرات المجاورة لمنع تسرب الهواء الخارجي للداخل.',
+          'درجة الحرارة: 18°C إلى 24°C، والرطوبة النسبية: 20% إلى 60%.',
+          'المعايير: ANSI/ASHRAE/ASHE Standard 170 و ISO 14644-1 (Class 5).'
+        ],
+        safety: 'يُمنع فتح أبواب الغرفة بشكل متكرر أثناء العملية للحفاظ على الضغط الموجب، ويجب إجراء فحص سنوي لسلامة الفلاتر (DOP/PAO Integrity Test) وسرعة الهواء (0.20 - 0.30 م/ث).'
+      },
+      {
+        id: 'anesthesia_workstation',
+        number: 4,
+        category: 'التخدير ومراقبة العلامات الحيوية',
+        title: 'محطة التخدير وجهاز مراقبة المريض',
+        enTitle: 'Anesthesia Workstation & Multi-Parameter Patient Monitor',
+        icon: 'fa-heart-pulse',
+        pinOffset: new THREE.Vector3(0, 1.55, -1.65),
+        camPos: new THREE.Vector3(1.65, 1.75, -0.35),
+        camTarget: new THREE.Vector3(-0.1, 1.25, -1.65),
+        functionDesc: 'تزويد المريض بخليط دقيق من الغازات الطبية وأبخرة التخدير، وتولي عملية التنفس الاصطناعي للمريض أثناء التخدير العام، مع المراقبة اللحظية لجميع الوظائف الحيوية.',
+        components: [
+          'هيكل متحرك أبيض مزود بدرجين أماميين كبيرين باللون الأزرق السماوي الفاتح لتخزين مستلزمات التخدير وأنابيب التنبيب، مع قاعدة رباعية العجلات الطبية.',
+          'وحدة المبخرات المزدوجة (Dual Vaporizers): مبخر Sevoflurane الأصفر ومبخر غاز التخدير الأحمر المعايرة بدقة والمزودة بنظام أمان يمنع فتحهما معاً (Interlock System).',
+          'لوحة مقاييس التدفق (Flowmeter Bank) المزودة بأنابيب قياس زجاجية للأوكسجين والهواء الطبي وأكسيد النيتروز، يعلوها عدادات ضغط الأسطوانات والخطوط (Pressure Gauges).',
+          'وحدة التنفس الجانبية المتكاملة (Integrated Breathing System): تضم المنفاخ الشفاف العلوي (Bellows) وماص ثاني أكسيد الكربون السفلي (CO2 Soda Lime Canister) بلونه الكهرماني.',
+          'شاشة المنفسة العلوية المدمجة (Ventilator Display) لضبط أنماط التنفس الاصطناعي، وشاشة مراقبة المريض الجانبية (Multi-Parameter Monitor) المثبتة على ذراع مفصلي في الجهة اليسرى.'
+        ],
+        specs: [
+          'نظام كسح غازات التخدير العادمة (AGSS) لمنع تلوث هواء الغرفة وحماية الطاقم الطبي.',
+          'المعايير: IEC 60601-2-13 الخاصة بمحطات التخدير.',
+          'بطارية داخلية احتياطية تعمل لمدة 45-90 دقيقة.'
+        ],
+        safety: 'إجراء الفحص الذاتي التلقائي (Leak & Compliance Self-Test) قبل كل مريض، والتأكد من وجود أسطوانة أوكسجين احتياطية ممتلئة مثبتة خلف الجهاز.'
+      },
+      {
+        id: 'ceiling_pendants',
+        number: 5,
+        category: 'البنية التحتية للغازات والطاقة',
+        title: 'الأذرع السقفية المعلقة (Pendants)',
+        enTitle: 'Articulated Ceiling Supply Units (Anesthesia & Surgical Pendants)',
+        icon: 'fa-plug-circle-bolt',
+        pinOffset: new THREE.Vector3(-1.35, 1.9, -1.0),
+        camPos: new THREE.Vector3(0.8, 2.0, 1.1),
+        camTarget: new THREE.Vector3(-1.2, 1.65, -0.9),
+        functionDesc: 'توصيل الغازات الطبية، الكهرباء المعزولة، وشبكات البيانات من السقف مباشرة إلى محيط طاولة العمليات دون تمديد كابلات أو خراطيم على الأرضية، مما يمنع حوادث التعثر ويسهل تنظيف الأرضية وتعقيمها.',
+        components: [
+          'ذراع التخدير (Anesthesia Pendant): يقع عند رأس الطاولة ويحمل جهاز التخدير وشاشات المراقبة.',
+          'ذراع الجراحة (Surgical Pendant): يقع بجانب الطاولة ويحمل جهاز الكي الكهربائي وأجهزة المناظير.',
+          'مخارج الغازات الطبية الملونة والمميزة هندسياً (DISS / NIST): الأوكسجين (أبيض/أخضر)، الهواء الطبي (أسود/أبيض)، الشفط الجراحي (أصفر)، وسحب غازات التخدير AGSS.',
+          'مقابس كهربائية طبية معزولة (12-16 مأخذ) ونقاط تأريض معادل للجهد (POAG).'
+        ],
+        specs: [
+          'القدرة التحميلية للرفوف والأذرع: 80 إلى 150 كغم حسب التصميم.',
+          'مكابح هوائية (Pneumatic Brakes) أو كهرومغناطيسية لتثبيت الذراع في أي وضعية.',
+          'المعايير: ISO 11197 الخاصة بوحدات الإمداد الطبية و NFPA 99.'
+        ],
+        safety: 'عدم تحميل الرفوف بأوزان تتجاوز الحد المسموح، وفحص إحكام مخارج الغازات دورياً لمنع أي تسرب.'
+      },
+      {
+        id: 'esu_laparoscopic',
+        number: 6,
+        category: 'التصوير الطبي والتنظير الداخلي',
+        title: 'برج الناظور الطبي المتكامل (Video Endoscopy Tower)',
+        enTitle: 'HD Medical Video Endoscopy System & Mobile Cart',
+        icon: 'fa-tv',
+        pinOffset: new THREE.Vector3(1.55, 1.65, -0.35),
+        camPos: new THREE.Vector3(0.05, 1.55, 1.35),
+        camTarget: new THREE.Vector3(1.6, 1.15, -0.35),
+        functionDesc: 'نظام تنظير طبي متكامل يتيح للطبيب رؤية التجاويف والأنسجة الداخلية بدقة عالية وإضاءة باردة عبر أنبوب تنظير مرن أو صلب، مما يمكّن من التشخيص الدقيق وإجراء التداخلات الجراحية طفيفة التوغل دون الحاجة لشقوق جراحية كبيرة.',
+        components: [
+          'شاشة عرض طبية عالية الدقة (Medical-Grade Flat Monitor) مثبتة على حامل مركزي أعلى العربة لعرض الصورة الحية للأنسجة مع بيانات المريض.',
+          'وحدة مصدر الإضاءة البارد (Cold LED Light Source - الوحدة العلوية): مزودة بمنفذ بصري دائري مضيء لنقل الضوء عبر الألياف الضوئية دون توليد حرارة تحرق الأنسجة، ومفتاح تشغيل أخضر.',
+          'معالج الصورة الفيديو (Video Image Processor - الوحدة السفلية): يحتوي على لوحة تحكم أمامية بأزرار اتجاهات ومفاتيح معايرة الألوان وتوازن الأبيض (White Balance) ومعالجة الإشارة الرقمية.',
+          'حامل الناظور العمودي والناظور المرن (Flexible Endoscope & Holder Pole): عمود من الفولاذ المقاوم للصدأ مثبت على يمين العربة بحلقتي تثبيت ويعلوه حامل مائل لتعليق مقبض التحكم للناظور وأنبوب الإدخال المرن الطويل.',
+          'عربة طبية رباعية الرفوف (4-Tier Medical Trolley): هيكل أبيض بأعمدة ألمنيوم ذات شريط أزرق، وزوايا حماية زرقاء، ودرج تخزين سفلي مغلق، وصينية جانبية للملحقات، وعجلات طبية مزودة بمكابح.'
+        ],
+        specs: [
+          'دقة التصوير: Full HD 1080p / 4K مع معالجة رقمية لتحسين تباين الأوعية الدموية والأغشية المخاطية.',
+          'مصدر الإضاءة: مصباح LED طبي عالي الكفاءة بعمر تشغيلي يتجاوز 30,000 ساعة ودرجة حرارة لون تحاكي ضوء النهار (5500K - 6500K).',
+          'العجلات الطبية: 4 عجلات صامتة موصلة للكهرباء الساكنة مع أغطية حماية زرقاء ومكابح تثبيت أمامية.',
+          'المعايير المعتمدة: IEC 60601-2-18 (سلامة معدات التنظير الطبي) و IEC 60601-1.'
+        ],
+        safety: 'يجب تعليق أنبوب الناظور المرن بشكل عمودي مستقيم على الحامل المخصص دون ثنيه بزاوية حادة لمنع تكسر الألياف الضوئية الداخلية، مع إجراء التطهير عالي المستوى (High-Level Disinfection) للناظور بعد كل استخدام وفحص التسرب (Leakage Test) قبل الغمر بالسوائل.'
+      },
+      {
+        id: 'mayo_iv_tables',
+        number: 7,
+        category: 'المناولة والتجهيزات المعقمة',
+        title: 'طاولة مايو للأدوات وحامل المحاليل',
+        enTitle: 'Mayo Instrument Stand, Back Table & IV Pole',
+        icon: 'fa-kit-medical',
+        pinOffset: new THREE.Vector3(-0.95, 1.1, 0.95),
+        camPos: new THREE.Vector3(0.9, 1.55, 2.3),
+        camTarget: new THREE.Vector3(-0.9, 0.9, 0.9),
+        functionDesc: 'توفير مساحة معقمة ومنظمة لترتيب المشارط والملاقط والخيوط الجراحية في متناول يد ممرض العمليات (Scrub Nurse) والجراح، بالإضافة إلى تعليق المحاليل الوريدية وأكياس الدم.',
+        components: [
+          'طاولة مايو (Mayo Stand): طاولة متحركة ذات عمود جانبي واحد تنزلق فوق طرف طاولة العمليات وتُغطى بكيس معقم.',
+          'طاولة الأدوات الخلفية (Back Table): طاولة كبيرة من الفولاذ المقاوم للصدأ لحمل الصناديق الجراحية والمستلزمات المعقمة الإضافية.',
+          'حامل المحاليل (IV Stand): عمود من الفولاذ المقاوم للصدأ بقاعدة خماسية العجلات مانعة للانقلاب وخطافات متعددة لتعليق السوائل الوريدية ومضخات الحقن (Infusion Pumps).'
+        ],
+        specs: [
+          'المادة: فولاذ مقاوم للصدأ الطبي (AISI 304 أو 316) غير مسامي وسهل التنظيف.',
+          'عجلات طبية موصلة للكهرباء الساكنة (Antistatic Castors) لتفريغ الشحنات للأرض.'
+        ],
+        safety: 'يجب أن تبقى جميع الأدوات الموضوعة على هذه الطاولات داخل حدود الستارة الهوائية لنظام التدفق الصفائحي (LAF Zone) لضمان عدم تلوثها.'
+      },
+      {
+        id: 'wall_control_ips',
+        number: 8,
+        category: 'أنظمة التحكم والسلامة الكهربائية',
+        title: 'لوحة التحكم الجدارية ونظام العزل الكهربائي IPS',
+        enTitle: 'Flush-Mounted OR Control Panel & Isolated Power System (IPS)',
+        icon: 'fa-sliders',
+        pinOffset: new THREE.Vector3(2.85, 1.55, -1.2),
+        camPos: new THREE.Vector3(0.6, 1.65, -0.4),
+        camTarget: new THREE.Vector3(2.95, 1.5, -1.2),
+        functionDesc: 'مراقبة والتحكم في جميع الظروف البيئية للغرفة من مكان واحد، وحماية المريض من الصدمة الكهربائية الدقيقة (Microshock) التي قد تسبب الرجفان البطيني للقلب أثناء الجراحة.',
+        components: [
+          'لوحة التحكم الجدارية الغاطسة (Flush-mounted Stainless Steel Panel) لسهولة التنظيف وعدم تراكم الغبار.',
+          'شاشات عرض رقمية لدرجة الحرارة، الرطوبة، فرق الضغط الموجب، وساعة توقيت العملية والتخدير (Surgical & Anesthesia Timers).',
+          'شاشة عرض الأشعة الرقمية (PACS Medical Display) لمراجعة صور الرنين والأشعة المقطعية أثناء الجراحة.',
+          'نظام العزل الكهربائي الطبي (Medical IT / IPS) مع جهاز مراقبة العزل (LIM - Line Isolation Monitor) الذي يعطي إنذاراً صوتياً وضوئياً عند حدوث أول خطأ تأريض دون قطع الكهرباء عن الأجهزة.'
+        ],
+        specs: [
+          'حساسية جهاز مراقبة العزل (LIM): يطلق الإنذار عند وصول تيار التسرب إلى 2 mA أو 5 mA حسب المعيار.',
+          'المعايير: NFPA 99 و IEC 60364-7-710 (Group 2 Medical Locations).'
+        ],
+        safety: 'في حال انطلاق إنذار نظام العزل الكهربائي (LIM Alarm)، يجب تحديد الجهاز المسبب للتسرب دون إيقاف الأجهزة الداعمة للحياة فجأة، واستدعاء مهندس الصيانة الطبية فوراً.'
+      },
+      {
+        id: 'floor_walls',
+        number: 9,
+        category: 'التشطيبات المعمارية ومكافحة العدوى',
+        title: 'الأرضية الموصلة والجدران المضادة للبكتيريا',
+        enTitle: 'Conductive Antistatic Flooring & Seamless Antibacterial Walls',
+        icon: 'fa-border-all',
+        pinOffset: new THREE.Vector3(-1.8, 0.25, 1.8),
+        camPos: new THREE.Vector3(0.4, 1.35, 3.0),
+        camTarget: new THREE.Vector3(-1.5, 0.3, 1.5),
+        functionDesc: 'منع تراكم الشحنات الكهروستاتيكية التي قد تتلف الأجهزة الطبية الحساسة أو تسبب شرارة بوجود الغازات القابلة للاشتعال، ومنع نمو البكتيريا والفطريات في زوايا الغرفة.',
+        components: [
+          'أرضية من الفينيل الموصل (Conductive Homogeneous Vinyl) أو الإيبوكسي الموصل، ملحومة حرارياً (Heat-welded) بدون فواصل.',
+          'شرائط نحاسية تحت الأرضية متصلة بشبكة التأريض الرئيسية للمستشفى لتفريغ الشحنات الساكنة.',
+          'نعلة مقعرة (Coved Skirting) ترفع الأرضية على الجدار بارتفاع 10-15 سم بزاوية دائرية لتسهيل التنظيف ومنع تجمع الأوساخ في الزوايا القائمة.',
+          'جدران مكسوة بألواح HPL الطبية أو الفولاذ المقاوم للصدأ أو دهان إيبوكسي مضاد للميكروبات غير مسامي.'
+        ],
+        specs: [
+          'المقاومة الكهربائية للأرضية الموصلة: تتراوح بين 2.5 × 10⁴ أوم و 1 × 10⁶ أوم (25 kΩ - 1 MΩ).',
+          'الحد الأدنى لمساحة غرفة العمليات القياسية: 36 إلى 42 متر مربع (ويصل إلى 60-70 م² للغرف الهجينة Hybrid OR).',
+          'المعايير: FGI Guidelines و EN 1081.'
+        ],
+        safety: 'يجب ارتداء أحذية طبية موصلة للكهرباء الساكنة (ESD Footwear) داخل الغرفة لضمان اكتمال دائرة التفريغ الأرضي.'
+      },
+      {
+        id: 'exhaust_hermetic_door',
+        number: 10,
+        category: 'العزل الهوائي والدخول المعقم',
+        title: 'فتحات سحب الهواء السفلية والباب المحكم',
+        enTitle: 'Low-Level Exhaust Grilles & Hermetically Sealed Sliding Door',
+        icon: 'fa-door-closed',
+        pinOffset: new THREE.Vector3(2.8, 0.65, 1.75),
+        camPos: new THREE.Vector3(0.5, 1.5, 2.8),
+        camTarget: new THREE.Vector3(2.8, 1.0, 1.7),
+        functionDesc: 'توجيه مسار الهواء الملوث نحو الأسفل لسحبه خارج الغرفة عبر فتحات قريبة من الأرضية، والحفاظ على الإغلاق المحكم للغرفة لمنع فقدان الضغط الموجب أو تسرب الملوثات.',
+        components: [
+          'فتحات سحب الهواء السفلية (Low-Level Return/Exhaust Grilles): تُركب في زوايا الجدران بارتفاع 15-30 سم عن الأرضية مع فلاتر أولية قابلة للتنظيف.',
+          'باب منزلق أوتوماتيكي محكم الإغلاق (Hermetic Sliding Door): ينزلق أفقياً ثم ينضغط لأسفل وللداخل على إطار مطاطي (Gasket) ليغلق الغرفة بإحكام تام.',
+          'حساس فتح بدون لمس (Touchless Wave Sensor / Foot Switch) يتيح للطاقم الطبي فتح الباب دون تلويث أيديهم المعقمة.',
+          'نافذة زجاجية مزدوجة مدمجة بالباب مزودة بستائر داخلية (Integral Blinds) للخصوصية.'
+        ],
+        specs: [
+          'ارتفاع فتحات السحب السفلية: لا يقل عن 200 مم فوق مستوى الأرضية النهائية (وفق ASHRAE 170).',
+          'نسبة تسرب الهواء للباب المحكم: أقل من 0.5 م³/ساعة عند فرق ضغط 50 باسكال.',
+          'المعايير: ANSI/ASHRAE 170 و DIN 18650.'
+        ],
+        safety: 'يمنع وضع أي معدات أو عربات أمام فتحات سحب الهواء السفلية حتى لا يتعطل مسار التيار الهوائي داخل الغرفة.'
+      },
+      {
+        id: 'defibrillator_crash_cart',
+        number: 11,
+        category: 'الإنعاش القلبي والطوارئ',
+        title: 'جهاز الصدمة الكهربائية (DC Shock) وعربة الطوارئ',
+        enTitle: 'Biphasic Defibrillator (DC Shock) & Emergency Crash Cart',
+        icon: 'fa-bolt',
+        pinOffset: new THREE.Vector3(-1.35, 1.48, -2.25),
+        camPos: new THREE.Vector3(0.35, 1.65, -0.75),
+        camTarget: new THREE.Vector3(-1.35, 1.05, -2.25),
+        functionDesc: 'توجيه نبضة كهربائية عالية الطاقة ومضبوطة بدقة عبر عضلة القلب لإيقاف اضطرابات النظم القاتلة مثل الرجفان البطيني (Ventricular Fibrillation) أو تسرع القلب البطيني عديم النبض وإعادة النبض الجيبي الطبيعي فوراً أثناء الجراحة.',
+        components: [
+          'وحدة الصدمة الكهربائية ثنائية الطور (Biphasic Defibrillator): مزودة بشاشة ملونة لعرض تخطيط القلب (ECG) ومستوى الطاقة المختار بالجول (2J إلى 200J أو 360J) وزر الشحن (Charge) وزر الصدمة المتزامنة (Sync).',
+          'مقابض الصدمة الخارجية والداخلية (External & Internal Paddles): مقابض خارجية للصدر مع أزرار تفريغ مزدوجة للأمان، ومقابض داخلية معقمة تُستخدم مباشرة على عضلة القلب في جراحات القلب المفتوح.',
+          'عربة الطوارئ متعددة الأدراج (Emergency Crash Cart): تحتوي على أدوية الإنعاش القلبي (الأدرينالين، الأتروبين، الأميودارون)، أنابيب التنبيب الرغامي، ومضخة شفط احتياطية وأسطوانة أوكسجين.'
+        ],
+        specs: [
+          'نوع الموجة: ثنائية الطور المبتورة أسياً (Biphasic Truncated Exponential - BTE) التي تحتاج طاقة أقل وتسبب ضرراً أقل لعضلة القلب.',
+          'زمن الشحن: أقل من 5 ثوانٍ للوصول إلى طاقة 200 جول.',
+          'المعايير: IEC 60601-2-4 الخاصة بسلامة وأداء أجهزة إزالة الرجفان القلبي.'
+        ],
+        safety: 'يجب إبعاد جميع أفراد الطاقم الطبي عن طاولة العمليات المعدنية والمريض قبل الضغط على زر التفريغ مع النداء بصوت واضح (Clear!)، وإجراء فحص التفريغ الذاتي اليومي (Daily Self-Test) للتأكد من جاهزية البطارية والمكثف.'
+      }
+    ];
+
+    /**
+     * ============================================================================
+     * 2. إعداد مشهد Three.js الأساسي والإضاءة والكاميرا
+     * ============================================================================
+     */
+    const container = document.getElementById('canvas-container');
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x0b1320);
+    scene.fog = new THREE.FogExp2(0x0b1320, 0.025);
+
+    const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100);
+    camera.position.set(4.3, 2.7, 4.3);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.15;
+    container.appendChild(renderer.domElement);
+
+    // OrbitControls
+    const controls = new THREE.OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.06;
+    controls.maxDistance = 9.5;
+    controls.minDistance = 1.1;
+    controls.maxPolarAngle = Math.PI / 2 - 0.03; // Prevent going under floor
+    controls.target.set(0, 1.1, 0);
+
+    // Lighting Setup (Clean Bright Medical Lighting)
+    const ambientLight = new THREE.AmbientLight(0xdbeafe, 0.65);
+    scene.add(ambientLight);
+
+    const hemiLight = new THREE.HemisphereLight(0xf0f9ff, 0x334155, 0.55);
+    scene.add(hemiLight);
+
+    // Main Overhead Surgical Zone Light
+    const mainSpot = new THREE.SpotLight(0xffffff, 1.35);
+    mainSpot.position.set(0, 3.3, 0);
+    mainSpot.angle = Math.PI / 2.6;
+    mainSpot.penumbra = 0.45;
+    mainSpot.castShadow = true;
+    mainSpot.shadow.mapSize.width = 2048;
+    mainSpot.shadow.mapSize.height = 2048;
+    mainSpot.shadow.bias = -0.0005;
+    scene.add(mainSpot);
+
+    // Secondary Fill Lights for Architectural Clarity
+    const fillLight1 = new THREE.PointLight(0xe0f2fe, 0.45, 12);
+    fillLight1.position.set(-2.2, 2.8, 2.2);
+    scene.add(fillLight1);
+
+    const fillLight2 = new THREE.PointLight(0xccfbf1, 0.4, 12);
+    fillLight2.position.set(2.2, 2.8, -2.2);
+    scene.add(fillLight2);
+
+    /**
+     * ============================================================================
+     * 3. المواد والخامات الطبية (Materials & Procedural Textures)
+     * ============================================================================
+     */
+    // Procedural Anti-Static Conductive Floor Texture
+    function createConductiveFloorTexture() {
+      const canvas = document.createElement('canvas');
+      canvas.width = 512;
+      canvas.height = 512;
+      const ctx = canvas.getContext('2d');
+
+      // Base Rich Deep Medical Slate-Teal Vinyl (Stronger contrast with walls)
+      ctx.fillStyle = '#1d4e5f';
+      ctx.fillRect(0, 0, 512, 512);
+
+      // Subtle conductive flecks
+      for (let i = 0; i < 3500; i++) {
+        const x = Math.random() * 512;
+        const y = Math.random() * 512;
+        ctx.fillStyle = Math.random() > 0.5 ? 'rgba(255,255,255,0.18)' : 'rgba(6, 18, 28, 0.35)';
+        ctx.fillRect(x, y, 2, 2);
+      }
+
+      // Heat-welded seam lines (Clear visible welding rods)
+      ctx.strokeStyle = 'rgba(125, 211, 252, 0.45)';
+      ctx.lineWidth = 3;
+      ctx.strokeRect(1.5, 1.5, 509, 509);
+
+      // Surgical Zone Perimeter Marking
+      const tex = new THREE.CanvasTexture(canvas);
+      tex.wrapS = THREE.RepeatWrapping;
+      tex.wrapT = THREE.RepeatWrapping;
+      tex.repeat.set(6, 6);
+      return tex;
+    }
+
+    // Procedural Monitor Display Texture
+    function createMonitorTexture() {
+      const canvas = document.createElement('canvas');
+      canvas.width = 512;
+      canvas.height = 320;
+      const ctx = canvas.getContext('2d');
+
+      ctx.fillStyle = '#050a14';
+      ctx.fillRect(0, 0, 512, 320);
+
+      // Grid lines
+      ctx.strokeStyle = 'rgba(30, 58, 138, 0.35)';
+      ctx.lineWidth = 1;
+      for (let x = 0; x < 512; x += 32) {
+        ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, 320); ctx.stroke();
+      }
+      for (let y = 0; y < 320; y += 32) {
+        ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(512, y); ctx.stroke();
+      }
+
+      // ECG Wave (Green)
+      ctx.strokeStyle = '#22c55e';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      for (let x = 10; x < 340; x += 2) {
+        let y = 65;
+        const mod = x % 85;
+        if (mod === 30) y = 22;
+        else if (mod === 34) y = 92;
+        else if (mod === 38) y = 55;
+        else if (mod > 50 && mod < 62) y = 52;
+        if (x === 10) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      }
+      ctx.stroke();
+
+      // SpO2 Pleth Wave (Cyan)
+      ctx.strokeStyle = '#38bdf8';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      for (let x = 10; x < 340; x += 2) {
+        const y = 155 - Math.abs(Math.sin(x * 0.045)) * 32;
+        if (x === 10) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      }
+      ctx.stroke();
+
+      // EtCO2 Capnography Wave (Yellow)
+      ctx.strokeStyle = '#facc15';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      for (let x = 10; x < 340; x += 2) {
+        const mod = x % 95;
+        const y = mod < 45 ? 255 : 210;
+        if (x === 10) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      }
+      ctx.stroke();
+
+      // Vital Signs Numbers
+      ctx.font = 'bold 34px monospace';
+      ctx.fillStyle = '#22c55e';
+      ctx.fillText('HR 72', 360, 68);
+
+      ctx.fillStyle = '#38bdf8';
+      ctx.fillText('SpO2 99%', 355, 155);
+
+      ctx.fillStyle = '#facc15';
+      ctx.fillText('EtCO2 38', 355, 245);
+
+      ctx.fillStyle = '#f43f5e';
+      ctx.font = 'bold 24px monospace';
+      ctx.fillText('BP 118/76', 355, 295);
+
+      return new THREE.CanvasTexture(canvas);
+    }
+
+    // Procedural Live Endoscopic Tissue Image Texture for Endoscopy Monitor
+    function createEndoscopyScreenTexture() {
+      const canvas = document.createElement('canvas');
+      canvas.width = 512;
+      canvas.height = 300;
+      const ctx = canvas.getContext('2d');
+
+      // Dark medical monitor outer bezel
+      ctx.fillStyle = '#090d16';
+      ctx.fillRect(0, 0, 512, 300);
+
+      // Endoscopic octagonal camera viewport
+      ctx.save();
+      ctx.beginPath();
+      ctx.moveTo(45, 15);
+      ctx.lineTo(395, 15);
+      ctx.lineTo(420, 40);
+      ctx.lineTo(420, 260);
+      ctx.lineTo(395, 285);
+      ctx.lineTo(45, 285);
+      ctx.lineTo(20, 260);
+      ctx.lineTo(20, 40);
+      ctx.closePath();
+      ctx.clip();
+
+      // Mucosal tissue radial gradient (Pink/Red clinical endoscopic view)
+      const grad = ctx.createRadialGradient(250, 120, 15, 220, 150, 230);
+      grad.addColorStop(0, '#fbcfe8');
+      grad.addColorStop(0.28, '#f43f5e');
+      grad.addColorStop(0.68, '#be123c');
+      grad.addColorStop(1, '#4c0519');
+      ctx.fillStyle = grad;
+      ctx.fillRect(20, 15, 400, 270);
+
+      // Subtle mucosal folds & specular wet light highlights
+      ctx.strokeStyle = 'rgba(255, 228, 230, 0.32)';
+      ctx.lineWidth = 4;
+      ctx.beginPath();
+      ctx.arc(210, 145, 85, 0.2, 2.5);
+      ctx.stroke();
+
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.45)';
+      ctx.beginPath();
+      ctx.ellipse(260, 105, 16, 8, -0.4, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+
+      // Right-side OSD telemetry text
+      ctx.fillStyle = '#94a3b8';
+      ctx.font = 'bold 12px monospace';
+      ctx.fillText('HD-ENDO', 432, 42);
+      ctx.fillStyle = '#38bdf8';
+      ctx.fillText('1080P', 432, 62);
+      ctx.fillStyle = '#22c55e';
+      ctx.fillText('LED 85%', 432, 95);
+      ctx.fillStyle = '#cbd5e1';
+      ctx.fillText('WB: OK', 432, 120);
+
+      return new THREE.CanvasTexture(canvas);
+    }
+
+    // Procedural Front Panel Texture for Cold Light Source & Video Processor Units
+    function createEndoUnitPanelTexture(isLightSource) {
+      const canvas = document.createElement('canvas');
+      canvas.width = 420;
+      canvas.height = 110;
+      const ctx = canvas.getContext('2d');
+
+      // White metal housing border
+      ctx.fillStyle = '#f1f5f9';
+      ctx.fillRect(0, 0, 420, 110);
+
+      // Dark recessed control faceplate
+      ctx.fillStyle = '#1e293b';
+      ctx.fillRect(14, 14, 392, 82);
+
+      if (isLightSource) {
+        // Circular optical light-guide port on the left
+        ctx.fillStyle = '#cbd5e1';
+        ctx.beginPath();
+        ctx.arc(62, 55, 26, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.fillStyle = '#e0f2fe';
+        ctx.beginPath();
+        ctx.arc(62, 55, 14, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Intensity bar & status LEDs
+        ctx.fillStyle = '#38bdf8';
+        ctx.fillRect(115, 42, 140, 10);
+        ctx.fillStyle = '#64748b';
+        ctx.fillRect(115, 62, 110, 8);
+      } else {
+        // Video processor directional buttons & indicators
+        ctx.fillStyle = '#475569';
+        ctx.beginPath();
+        ctx.arc(58, 55, 22, 0, Math.PI * 2);
+        ctx.fill();
+
+        for (let row = 0; row < 2; row++) {
+          for (let col = 0; col < 4; col++) {
+            ctx.fillStyle = (row === 0 && col === 0) ? '#38bdf8' : '#64748b';
+            ctx.fillRect(110 + col * 42, 30 + row * 28, 30, 18);
+          }
+        }
+      }
+
+      // Signature Green Power Switch on far right
+      ctx.fillStyle = '#16a34a';
+      ctx.fillRect(356, 36, 28, 38);
+      ctx.strokeStyle = '#86efac';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(356, 36, 28, 38);
+
+      return new THREE.CanvasTexture(canvas);
+    }
+
+    // Procedural Wall Control Panel Texture
+    function createControlPanelTexture() {
+      const canvas = document.createElement('canvas');
+      canvas.width = 512;
+      canvas.height = 380;
+      const ctx = canvas.getContext('2d');
+
+      ctx.fillStyle = '#0f172a';
+      ctx.fillRect(0, 0, 512, 380);
+
+      ctx.strokeStyle = '#38bdf8';
+      ctx.lineWidth = 4;
+      ctx.strokeRect(8, 8, 496, 364);
+
+      ctx.fillStyle = '#38bdf8';
+      ctx.font = 'bold 22px sans-serif';
+      ctx.fillText('OR ENVIRONMENTAL & IPS CONTROL', 45, 45);
+
+      // Boxes for Temp, Humidity, Pressure, Timer
+      const items = [
+        { label: 'TEMP', val: '20.5 °C', color: '#22c55e', x: 30, y: 75 },
+        { label: 'HUMIDITY', val: '48 %RH', color: '#38bdf8', x: 265, y: 75 },
+        { label: 'DIFF PRESSURE', val: '+12.4 Pa', color: '#a855f7', x: 30, y: 185 },
+        { label: 'IPS / LIM STATUS', val: 'NORMAL 0.4mA', color: '#10b981', x: 265, y: 185 }
+      ];
+
+      items.forEach(item => {
+        ctx.fillStyle = '#1e293b';
+        ctx.fillRect(item.x, item.y, 215, 90);
+        ctx.fillStyle = '#94a3b8';
+        ctx.font = 'bold 14px sans-serif';
+        ctx.fillText(item.label, item.x + 15, item.y + 28);
+        ctx.fillStyle = item.color;
+        ctx.font = 'bold 26px monospace';
+        ctx.fillText(item.val, item.x + 15, item.y + 68);
+      });
+
+      // Surgical Timer Bar
+      ctx.fillStyle = '#1e293b';
+      ctx.fillRect(30, 295, 450, 58);
+      ctx.fillStyle = '#f59e0b';
+      ctx.font = 'bold 28px monospace';
+      ctx.fillText('SURGICAL TIME:  01 : 42 : 18', 55, 334);
+
+      return new THREE.CanvasTexture(canvas);
+    }
+
+    const materials = {
+      floor: new THREE.MeshStandardMaterial({
+        map: createConductiveFloorTexture(),
+        roughness: 0.42,
+        metalness: 0.12
+      }),
+      wall: new THREE.MeshStandardMaterial({
+        color: 0xcbd5e1, // Architectural Soft Cool Grey-Blue for distinct wall contrast
+        roughness: 0.55,
+        metalness: 0.08
+      }),
+      wallAccent: new THREE.MeshStandardMaterial({
+        color: 0x94a3b8, // Deeper slate-blue accent for cutaway walls & architectural contrast
+        roughness: 0.5,
+        metalness: 0.12
+      }),
+      ceiling: new THREE.MeshStandardMaterial({
+        color: 0xf8fafc,
+        roughness: 0.4,
+        metalness: 0.1
+      }),
+      stainlessSteel: new THREE.MeshStandardMaterial({
+        color: 0xd1d5db,
+        roughness: 0.25,
+        metalness: 0.85
+      }),
+      chrome: new THREE.MeshStandardMaterial({
+        color: 0xf1f5f9,
+        roughness: 0.15,
+        metalness: 0.95
+      }),
+      medicalWhite: new THREE.MeshStandardMaterial({
+        color: 0xf8fafc,
+        roughness: 0.35,
+        metalness: 0.1
+      }),
+      medicalBlue: new THREE.MeshStandardMaterial({
+        color: 0x0284c7,
+        roughness: 0.4,
+        metalness: 0.15
+      }),
+      sterileDrape: new THREE.MeshStandardMaterial({
+        color: 0x0d9488, // Sterile Surgical Teal/Blue drape
+        roughness: 0.75,
+        metalness: 0.02
+      }),
+      blackPad: new THREE.MeshStandardMaterial({
+        color: 0x1e293b,
+        roughness: 0.5,
+        metalness: 0.1
+      }),
+      glass: new THREE.MeshPhysicalMaterial({
+        color: 0xbae6fd,
+        transparent: true,
+        opacity: 0.35,
+        roughness: 0.1,
+        metalness: 0.1
+      }),
+      lightGlow: new THREE.MeshBasicMaterial({
+        color: 0xffffff
+      }),
+      hepaGlow: new THREE.MeshBasicMaterial({
+        color: 0xe0f2fe
+      }),
+      monitorScreen: new THREE.MeshBasicMaterial({
+        map: createMonitorTexture()
+      }),
+      controlPanelScreen: new THREE.MeshBasicMaterial({
+        map: createControlPanelTexture()
+      })
+    };
+
+    /**
+     * ============================================================================
+     * 4. بناء المجسمات الهندسية لكل عناصر غرفة العمليات (3D Procedural Modeling)
+     * ============================================================================
+     */
+    const interactiveGroups = {};
+    const roomWidth = 6.2;
+    const roomDepth = 6.2;
+    const roomHeight = 3.35;
+
+    // --- 9. الأرضية الموصلة والجدران المضادة للبكتيريا ---
+    function buildRoomArchitecture() {
+      const group = new THREE.Group();
+      group.name = 'floor_walls';
+
+      // Conductive Floor
+      const floorMesh = new THREE.Mesh(new THREE.BoxGeometry(roomWidth, 0.1, roomDepth), materials.floor);
+      floorMesh.position.y = -0.05;
+      floorMesh.receiveShadow = true;
+      group.add(floorMesh);
+
+      // Surgical Zone Perimeter Floor Marking (3.0m x 3.0m under Laminar Canopy)
+      const zoneBorderMat = new THREE.MeshBasicMaterial({ color: 0x38bdf8 });
+      const borderThickness = 0.035;
+      const zoneSize = 3.0;
+      [
+        [0, 0.003, -zoneSize / 2, zoneSize, 0.004, borderThickness],
+        [0, 0.003,  zoneSize / 2, zoneSize, 0.004, borderThickness],
+        [-zoneSize / 2, 0.003, 0, borderThickness, 0.004, zoneSize],
+        [ zoneSize / 2, 0.003, 0, borderThickness, 0.004, zoneSize]
+      ].forEach(([x, y, z, w, h, d]) => {
+        const line = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), zoneBorderMat);
+        line.position.set(x, y, z);
+        group.add(line);
+      });
+
+      // Back Wall (North, z = -3.1) & Right Wall (East, x = 3.1) - Solid Cutaway style on South/West for clear viewing
+      const backWall = new THREE.Mesh(new THREE.BoxGeometry(roomWidth, roomHeight, 0.12), materials.wall);
+      backWall.position.set(0, roomHeight / 2, -roomDepth / 2);
+      backWall.receiveShadow = true;
+      group.add(backWall);
+
+      const rightWall = new THREE.Mesh(new THREE.BoxGeometry(0.12, roomHeight, roomDepth), materials.wall);
+      rightWall.position.set(roomWidth / 2, roomHeight / 2, 0);
+      rightWall.receiveShadow = true;
+      group.add(rightWall);
+
+      // Architectural Vertical Corner Seam Trim (Highlights the 90-degree Wall-to-Wall Corner)
+      const cornerTrimMat = new THREE.MeshStandardMaterial({ color: 0x475569, roughness: 0.35, metalness: 0.6 });
+      const backRightCornerTrim = new THREE.Mesh(new THREE.BoxGeometry(0.04, roomHeight, 0.04), cornerTrimMat);
+      backRightCornerTrim.position.set(roomWidth / 2 - 0.06, roomHeight / 2, -roomDepth / 2 + 0.06);
+      group.add(backRightCornerTrim);
+
+      // Horizontal Architectural Dado Rail / Wall Panel Seam at 1.1m height
+      const dadoBack = new THREE.Mesh(new THREE.BoxGeometry(roomWidth, 0.025, 0.015), cornerTrimMat);
+      dadoBack.position.set(0, 1.1, -roomDepth / 2 + 0.065);
+      group.add(dadoBack);
+
+      const dadoRight = new THREE.Mesh(new THREE.BoxGeometry(0.015, 0.025, roomDepth), cornerTrimMat);
+      dadoRight.position.set(roomWidth / 2 - 0.065, 1.1, 0);
+      group.add(dadoRight);
+
+      // Low Cutaway Walls on Left & Front so user can always see inside cleanly while showing coved skirting
+      const lowWallH = 0.45;
+      const leftLowWall = new THREE.Mesh(new THREE.BoxGeometry(0.12, lowWallH, roomDepth), materials.wallAccent);
+      leftLowWall.position.set(-roomWidth / 2, lowWallH / 2, 0);
+      leftLowWall.receiveShadow = true;
+      group.add(leftLowWall);
+
+      const frontLowWall = new THREE.Mesh(new THREE.BoxGeometry(roomWidth, lowWallH, 0.12), materials.wallAccent);
+      frontLowWall.position.set(0, lowWallH / 2, roomDepth / 2);
+      frontLowWall.receiveShadow = true;
+      group.add(frontLowWall);
+
+      // Curved Coved Skirting (النعلة المقعرة بزاوية منحنية واضحة بين الأرضية والجدار)
+      const skirtMat = new THREE.MeshStandardMaterial({ color: 0x0f2942, roughness: 0.35, metalness: 0.15 });
+      const coveCapMat = new THREE.MeshStandardMaterial({ color: 0x38bdf8, roughness: 0.3, metalness: 0.4 });
+
+      // Curved quarter-cylinder profile for realistic hygienic coved skirting
+      const coveRadius = 0.11;
+      const coveGeoX = new THREE.CylinderGeometry(coveRadius, coveRadius, roomWidth - 0.12, 16, 1, false, 0, Math.PI / 2);
+      coveGeoX.rotateZ(Math.PI / 2);
+
+      const coveGeoZ = new THREE.CylinderGeometry(coveRadius, coveRadius, roomDepth - 0.12, 16, 1, false, 0, Math.PI / 2);
+      coveGeoZ.rotateX(Math.PI / 2);
+
+      // Back Wall Coved Skirting + Top Trim Line
+      const skirtBack = new THREE.Mesh(new THREE.BoxGeometry(roomWidth, 0.15, 0.02), skirtMat);
+      skirtBack.position.set(0, 0.075, -roomDepth / 2 + 0.065);
+      group.add(skirtBack);
+      const coveBack = new THREE.Mesh(coveGeoX, skirtMat);
+      coveBack.rotation.y = Math.PI;
+      coveBack.position.set(0, 0.002, -roomDepth / 2 + 0.065);
+      group.add(coveBack);
+      const capBack = new THREE.Mesh(new THREE.BoxGeometry(roomWidth, 0.012, 0.025), coveCapMat);
+      capBack.position.set(0, 0.152, -roomDepth / 2 + 0.068);
+      group.add(capBack);
+
+      // Right Wall Coved Skirting + Top Trim Line
+      const skirtRight = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.15, roomDepth), skirtMat);
+      skirtRight.position.set(roomWidth / 2 - 0.065, 0.075, 0);
+      group.add(skirtRight);
+      const coveRight = new THREE.Mesh(coveGeoZ, skirtMat);
+      coveRight.rotation.y = Math.PI / 2;
+      coveRight.position.set(roomWidth / 2 - 0.065, 0.002, 0);
+      group.add(coveRight);
+      const capRight = new THREE.Mesh(new THREE.BoxGeometry(0.025, 0.012, roomDepth), coveCapMat);
+      capRight.position.set(roomWidth / 2 - 0.068, 0.152, 0);
+      group.add(capRight);
+
+      // Left Wall Coved Skirting + Top Trim Line
+      const skirtLeft = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.15, roomDepth), skirtMat);
+      skirtLeft.position.set(-roomWidth / 2 + 0.065, 0.075, 0);
+      group.add(skirtLeft);
+      const coveLeft = new THREE.Mesh(coveGeoZ, skirtMat);
+      coveLeft.rotation.y = -Math.PI / 2;
+      coveLeft.position.set(-roomWidth / 2 + 0.065, 0.002, 0);
+      group.add(coveLeft);
+      const capLeft = new THREE.Mesh(new THREE.BoxGeometry(0.025, 0.012, roomDepth), coveCapMat);
+      capLeft.position.set(-roomWidth / 2 + 0.068, 0.152, 0);
+      group.add(capLeft);
+
+      // Front Wall Coved Skirting + Top Trim Line
+      const skirtFront = new THREE.Mesh(new THREE.BoxGeometry(roomWidth, 0.15, 0.02), skirtMat);
+      skirtFront.position.set(0, 0.075, roomDepth / 2 - 0.065);
+      group.add(skirtFront);
+      const coveFront = new THREE.Mesh(coveGeoX, skirtMat);
+      coveFront.position.set(0, 0.002, roomDepth / 2 - 0.065);
+      group.add(coveFront);
+      const capFront = new THREE.Mesh(new THREE.BoxGeometry(roomWidth, 0.012, 0.025), coveCapMat);
+      capFront.position.set(0, 0.152, roomDepth / 2 - 0.068);
+      group.add(capFront);
+
+      // Grounding Copper Strip Indicator (Visual detail near left corner)
+      const copperStrip = new THREE.Mesh(
+        new THREE.BoxGeometry(0.15, 0.008, 0.6),
+        new THREE.MeshStandardMaterial({ color: 0xd97706, metalness: 0.85, roughness: 0.25 })
+      );
+      copperStrip.position.set(-2.85, 0.005, 2.2);
+      group.add(copperStrip);
+
+      scene.add(group);
+      interactiveGroups['floor_walls'] = group;
+    }
+
+    // --- 1. طاولة العمليات الجراحية (Surgical Operating Table) ---
+    let tableAnimState = {
+      heightOffset: 0,      // -0.14 to +0.22 m
+      targetHeight: 0,
+      trendAngle: 0,        // -0.22 to +0.22 rad
+      targetTrend: 0,
+      tiltAngle: 0,         // -0.22 to +0.22 rad
+      targetTilt: 0,
+      backAngle: 0,         // 0 to +0.48 rad
+      targetBack: 0
+    };
+    let tableDynamicParts = {};
+
+    function createHandControlTexture() {
+      const canvas = document.createElement('canvas');
+      canvas.width = 160;
+      canvas.height = 360;
+      const ctx = canvas.getContext('2d');
+
+      // Dark medical handset body
+      ctx.fillStyle = '#0f172a';
+      ctx.fillRect(0, 0, 160, 360);
+
+      // Top status LED bar
+      ctx.fillStyle = '#22c55e';
+      ctx.fillRect(28, 22, 104, 14);
+
+      // Grid of backlit tactile buttons
+      const btnColors = ['#38bdf8', '#2dd4bf', '#818cf8', '#34d399', '#fbbf24'];
+      for (let row = 0; row < 5; row++) {
+        for (let col = 0; col < 2; col++) {
+          ctx.fillStyle = btnColors[row];
+          ctx.fillRect(24 + col * 62, 58 + row * 54, 50, 38);
+          ctx.fillStyle = '#0f172a';
+          ctx.font = 'bold 16px sans-serif';
+          ctx.fillText(col === 0 ? '▲' : '▼', 41 + col * 62, 83 + row * 54);
+        }
+      }
+      return new THREE.CanvasTexture(canvas);
+    }
+
+    function buildOperatingTable() {
+      const group = new THREE.Group();
+      group.name = 'operating_table';
+
+      // Heavy Stainless Steel Base
+      const base = new THREE.Mesh(new THREE.BoxGeometry(0.65, 0.08, 1.05), materials.stainlessSteel);
+      base.position.y = 0.04;
+      base.castShadow = true;
+      base.receiveShadow = true;
+      group.add(base);
+
+      // Outer Hydraulic Column
+      const column = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.18, 0.56, 24), materials.chrome);
+      column.position.y = 0.36;
+      column.castShadow = true;
+      group.add(column);
+
+      // Inner Telescopic Hydraulic Column
+      const innerColumn = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.11, 0.38, 24), materials.stainlessSteel);
+      innerColumn.position.y = 0.56;
+      innerColumn.castShadow = true;
+      group.add(innerColumn);
+      tableDynamicParts.innerColumn = innerColumn;
+
+      // Override Control Panel on Column
+      const overridePanel = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.16, 0.11), materials.blackPad);
+      overridePanel.position.set(0.145, 0.44, 0);
+      group.add(overridePanel);
+
+      // Articulated Articulating Tabletop Group
+      const tableTopGroup = new THREE.Group();
+      tableTopGroup.position.y = 0.78;
+      group.add(tableTopGroup);
+      tableDynamicParts.tableTopGroup = tableTopGroup;
+
+      // Pelvic & Lower Section Frame + Mattress
+      const lowerFrame = new THREE.Mesh(new THREE.BoxGeometry(0.56, 0.05, 1.15), materials.stainlessSteel);
+      lowerFrame.position.set(0, 0, 0.35);
+      lowerFrame.castShadow = true;
+      tableTopGroup.add(lowerFrame);
+
+      const lowerPad = new THREE.Mesh(new THREE.BoxGeometry(0.54, 0.07, 1.13), materials.blackPad);
+      lowerPad.position.set(0, 0.06, 0.35);
+      lowerPad.castShadow = true;
+      tableTopGroup.add(lowerPad);
+
+      // Side Accessory Rails (Stainless Steel)
+      [-0.30, 0.30].forEach(rx => {
+        const rail = new THREE.Mesh(new THREE.BoxGeometry(0.015, 0.03, 1.1), materials.chrome);
+        rail.position.set(rx, 0, 0.35);
+        tableTopGroup.add(rail);
+      });
+
+      // Corded Hand Control Pendant hanging on Side Rail
+      const handset = new THREE.Mesh(new THREE.BoxGeometry(0.065, 0.17, 0.025), materials.blackPad);
+      handset.position.set(0.33, -0.02, 0.15);
+      handset.rotation.z = -0.15;
+      tableTopGroup.add(handset);
+
+      const handsetFace = new THREE.Mesh(
+        new THREE.PlaneGeometry(0.058, 0.155),
+        new THREE.MeshBasicMaterial({ map: createHandControlTexture() })
+      );
+      handsetFace.rotation.y = Math.PI / 2;
+      handsetFace.rotation.x = -0.15;
+      handsetFace.position.set(0.364, -0.02, 0.15);
+      tableTopGroup.add(handsetFace);
+
+      // Coiled Cable connecting Handset to Table
+      const coilCurve = new THREE.CatmullRomCurve3([
+        new THREE.Vector3(0.33, -0.10, 0.15),
+        new THREE.Vector3(0.35, -0.22, 0.08),
+        new THREE.Vector3(0.28, -0.16, -0.02),
+        new THREE.Vector3(0.22, -0.04, -0.08)
+      ]);
+      const coilCable = new THREE.Mesh(new THREE.TubeGeometry(coilCurve, 20, 0.008, 8, false), materials.blackPad);
+      tableTopGroup.add(coilCable);
+
+      // Backrest & Headrest Pivot Group (Head is toward -Z near Anesthesia)
+      const backrestPivot = new THREE.Group();
+      backrestPivot.position.set(0, 0, -0.22);
+      tableTopGroup.add(backrestPivot);
+      tableDynamicParts.backrestPivot = backrestPivot;
+
+      const backFrame = new THREE.Mesh(new THREE.BoxGeometry(0.56, 0.05, 0.56), materials.stainlessSteel);
+      backFrame.position.set(0, 0, -0.28);
+      backFrame.castShadow = true;
+      backrestPivot.add(backFrame);
+
+      const backPad = new THREE.Mesh(new THREE.BoxGeometry(0.54, 0.07, 0.54), materials.blackPad);
+      backPad.position.set(0, 0.06, -0.28);
+      backPad.castShadow = true;
+      backrestPivot.add(backPad);
+
+      // Headrest Section
+      const headFrame = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.045, 0.26), materials.stainlessSteel);
+      headFrame.position.set(0, 0.01, -0.71);
+      backrestPivot.add(headFrame);
+
+      const headPad = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.065, 0.24), materials.blackPad);
+      headPad.position.set(0, 0.06, -0.71);
+      backrestPivot.add(headPad);
+
+      // Armboards (Left & Right)
+      [-0.56, 0.56].forEach(ax => {
+        const armBoard = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.04, 0.14), materials.blackPad);
+        armBoard.position.set(ax, 0.03, -0.25);
+        armBoard.rotation.y = ax > 0 ? -0.18 : 0.18;
+        armBoard.castShadow = true;
+        backrestPivot.add(armBoard);
+      });
+
+      // Sterile Blue Surgical Drape Sheet over Pelvic/Leg area
+      const sterileSheet = new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.015, 0.85), materials.sterileDrape);
+      sterileSheet.position.set(0, 0.102, 0.45);
+      tableTopGroup.add(sterileSheet);
+
+      scene.add(group);
+      interactiveGroups['operating_table'] = group;
+    }
+
+    // --- 2. مصابيح العمليات السقفية عديمة الظل (Dual Shadowless Surgical Lights) ---
+    function buildSurgicalLights() {
+      const group = new THREE.Group();
+      group.name = 'surgical_lights';
+
+      // Central Ceiling Hub Mount
+      const hubBase = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.16, 0.14, 24), materials.medicalWhite);
+      hubBase.position.set(0.35, roomHeight - 0.07, -0.35);
+      group.add(hubBase);
+
+      const hubStem = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.055, 0.45, 20), materials.chrome);
+      hubStem.position.set(0.35, roomHeight - 0.30, -0.35);
+      group.add(hubStem);
+
+      function createLightArmAndDome(startPos, elbowPos, domePos, radius, tiltX, tiltZ) {
+        // Horizontal Arm
+        const arm1 = new THREE.Mesh(new THREE.BoxGeometry(0.65, 0.07, 0.08), materials.medicalWhite);
+        arm1.position.copy(elbowPos);
+        arm1.rotation.y = 0.5;
+        group.add(arm1);
+
+        // Spring Arm
+        const arm2 = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, 0.65, 16), materials.medicalWhite);
+        arm2.position.set((elbowPos.x + domePos.x) / 2, (elbowPos.y + domePos.y) / 2 + 0.1, (elbowPos.z + domePos.z) / 2);
+        arm2.rotation.z = 0.45;
+        group.add(arm2);
+
+        // Lamp Dome Housing (Aerodynamic open-ring medical design)
+        const domeGroup = new THREE.Group();
+        domeGroup.position.copy(domePos);
+        domeGroup.rotation.set(tiltX, 0, tiltZ);
+
+        const outerRing = new THREE.Mesh(new THREE.CylinderGeometry(radius, radius * 0.92, 0.09, 32), materials.medicalWhite);
+        outerRing.castShadow = true;
+        domeGroup.add(outerRing);
+
+        const blueTrim = new THREE.Mesh(new THREE.TorusGeometry(radius * 0.98, 0.015, 12, 32), materials.medicalBlue);
+        blueTrim.rotation.x = Math.PI / 2;
+        domeGroup.add(blueTrim);
+
+        // LED Array Glow Disc
+        const ledDisc = new THREE.Mesh(new THREE.CircleGeometry(radius * 0.86, 32), materials.lightGlow);
+        ledDisc.rotation.x = Math.PI / 2;
+        ledDisc.position.y = -0.046;
+        domeGroup.add(ledDisc);
+
+        // Sterile Autoclavable Center Handle
+        const handle = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.024, 0.16, 16), materials.sterileDrape);
+        handle.position.y = -0.11;
+        domeGroup.add(handle);
+
+        group.add(domeGroup);
+      }
+
+      // Main Satellite & Primary Lamp Heads
+      createLightArmAndDome(
+        new THREE.Vector3(0.35, 3.05, -0.35),
+        new THREE.Vector3(0.55, 2.95, -0.1),
+        new THREE.Vector3(0.55, 2.35, 0.25),
+        0.34,
+        -0.25,
+        0.25
+      );
+
+      createLightArmAndDome(
+        new THREE.Vector3(0.35, 3.05, -0.35),
+        new THREE.Vector3(0.05, 2.85, -0.55),
+        new THREE.Vector3(-0.35, 2.42, -0.35),
+        0.28,
+        0.22,
+        -0.22
+      );
+
+      scene.add(group);
+      interactiveGroups['surgical_lights'] = group;
+    }
+
+    // --- 3. نظام التدفق الصفائحي وفلاتر HEPA (Laminar Airflow Ceiling Canopy) ---
+    let airflowParticles = null;
+    let airflowVelocities = [];
+    let showAirflow = true;
+
+    function buildLaminarAirflowSystem() {
+      const group = new THREE.Group();
+      group.name = 'laminar_hepa';
+
+      // Ceiling LAF Canopy Frame (2.8m x 2.8m)
+      const canopyFrame = new THREE.Mesh(new THREE.BoxGeometry(2.85, 0.14, 2.85), materials.stainlessSteel);
+      canopyFrame.position.set(0, roomHeight - 0.07, 0);
+      group.add(canopyFrame);
+
+      // Perforated HEPA Diffuser Panels (Grid of 4x4 HEPA H14 modules)
+      const panelSize = 0.64;
+      for (let ix = -1.5; ix <= 1.5; ix += 1) {
+        for (let iz = -1.5; iz <= 1.5; iz += 1) {
+          const diffuser = new THREE.Mesh(new THREE.PlaneGeometry(panelSize, panelSize), materials.hepaGlow);
+          diffuser.rotation.x = Math.PI / 2;
+          diffuser.position.set(ix * 0.68, roomHeight - 0.142, iz * 0.68);
+          group.add(diffuser);
+        }
+      }
+
+      // Perimeter Air Curtain Glass Skirt
+      const skirtH = 0.22;
+      const skirtMat = materials.glass;
+      const sNorth = new THREE.Mesh(new THREE.BoxGeometry(2.85, skirtH, 0.015), skirtMat);
+      sNorth.position.set(0, roomHeight - 0.14 - skirtH / 2, -1.42);
+      group.add(sNorth);
+
+      const sSouth = new THREE.Mesh(new THREE.BoxGeometry(2.85, skirtH, 0.015), skirtMat);
+      sSouth.position.set(0, roomHeight - 0.14 - skirtH / 2, 1.42);
+      group.add(sSouth);
+
+      const sEast = new THREE.Mesh(new THREE.BoxGeometry(0.015, skirtH, 2.85), skirtMat);
+      sEast.position.set(1.42, roomHeight - 0.14 - skirtH / 2, 0);
+      group.add(sEast);
+
+      const sWest = new THREE.Mesh(new THREE.BoxGeometry(0.015, skirtH, 2.85), skirtMat);
+      sWest.position.set(-1.42, roomHeight - 0.14 - skirtH / 2, 0);
+      group.add(sWest);
+
+      scene.add(group);
+      interactiveGroups['laminar_hepa'] = group;
+
+      // Laminar Airflow Downward Streamlines (Animated Particles)
+      const particleCount = 340;
+      const positions = new Float32Array(particleCount * 3);
+      airflowVelocities = [];
+
+      for (let i = 0; i < particleCount; i++) {
+        positions[i * 3] = (Math.random() - 0.5) * 2.55;
+        positions[i * 3 + 1] = 0.25 + Math.random() * (roomHeight - 0.45);
+        positions[i * 3 + 2] = (Math.random() - 0.5) * 2.55;
+        airflowVelocities.push(0.012 + Math.random() * 0.008);
+      }
+
+      const particleGeo = new THREE.BufferGeometry();
+      particleGeo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+
+      const particleMat = new THREE.PointsMaterial({
+        color: 0x38bdf8,
+        size: 0.045,
+        transparent: true,
+        opacity: 0.65
+      });
+
+      airflowParticles = new THREE.Points(particleGeo, particleMat);
+      scene.add(airflowParticles);
+    }
+
+    // --- 4. محطة التخدير وجهاز مراقبة المريض (Replicating Uploaded Real Anesthesia Workstation Image) ---
+    function createVentilatorScreenTexture() {
+      const canvas = document.createElement('canvas');
+      canvas.width = 512;
+      canvas.height = 240;
+      const ctx = canvas.getContext('2d');
+
+      // White bezel frame
+      ctx.fillStyle = '#f8fafc';
+      ctx.fillRect(0, 0, 512, 240);
+
+      // Left mode buttons
+      ctx.fillStyle = '#cbd5e1';
+      for (let i = 0; i < 4; i++) {
+        ctx.fillRect(18, 22 + i * 50, 58, 38);
+      }
+
+      // Dark ventilator waveform screen
+      ctx.fillStyle = '#090d16';
+      ctx.fillRect(92, 18, 310, 204);
+
+      // Pressure waveform (Pink/Magenta)
+      ctx.fillStyle = '#ec4899';
+      ctx.beginPath();
+      ctx.moveTo(100, 95);
+      for (let x = 100; x < 320; x += 2) {
+        const mod = (x - 100) % 70;
+        const y = mod < 35 ? 38 : 95;
+        ctx.lineTo(x, y);
+      }
+      ctx.lineTo(320, 95);
+      ctx.fill();
+
+      // Flow waveform (Cyan)
+      ctx.fillStyle = '#38bdf8';
+      ctx.beginPath();
+      ctx.moveTo(100, 150);
+      for (let x = 100; x < 320; x += 2) {
+        const mod = (x - 100) % 70;
+        const y = mod < 30 ? 112 : (mod < 55 ? 175 : 150);
+        ctx.lineTo(x, y);
+      }
+      ctx.lineTo(320, 150);
+      ctx.fill();
+
+      // Volume waveform (Yellow)
+      ctx.fillStyle = '#facc15';
+      ctx.beginPath();
+      ctx.moveTo(100, 212);
+      for (let x = 100; x < 320; x += 2) {
+        const mod = (x - 100) % 70;
+        const y = mod < 35 ? 212 - mod * 1.3 : Math.min(212, 166 + (mod - 35) * 1.4);
+        ctx.lineTo(x, y);
+      }
+      ctx.lineTo(320, 212);
+      ctx.fill();
+
+      // Right parameter badges (Pink/Blue/Yellow)
+      const badgeCols = ['#f472b6', '#38bdf8', '#facc15', '#4ade80'];
+      badgeCols.forEach((col, i) => {
+        ctx.fillStyle = col;
+        ctx.fillRect(334, 24 + i * 48, 60, 40);
+      });
+
+      // Rotary Control Dial on Right White Panel
+      ctx.fillStyle = '#334155';
+      ctx.beginPath();
+      ctx.arc(455, 130, 26, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#94a3b8';
+      ctx.beginPath();
+      ctx.arc(455, 130, 18, 0, Math.PI * 2);
+      ctx.fill();
+
+      return new THREE.CanvasTexture(canvas);
+    }
+
+    function createFlowmeterBankTexture() {
+      const canvas = document.createElement('canvas');
+      canvas.width = 256;
+      canvas.height = 320;
+      const ctx = canvas.getContext('2d');
+
+      // Dark outer bezel
+      ctx.fillStyle = '#1e293b';
+      ctx.fillRect(0, 0, 256, 320);
+
+      // White illuminated flowmeter scale background
+      ctx.fillStyle = '#f1f5f9';
+      ctx.fillRect(18, 18, 220, 284);
+
+      // 3 Vertical Glass Flow Tubes (O2, N2O, AIR)
+      const tubeX = [56, 128, 200];
+      const floatColors = ['#22c55e', '#3b82f6', '#0f172a'];
+      const floatY = [135, 195, 160];
+
+      tubeX.forEach((tx, idx) => {
+        ctx.strokeStyle = '#94a3b8';
+        ctx.lineWidth = 4;
+        ctx.strokeRect(tx - 14, 30, 28, 258);
+
+        // Graduation tick marks
+        ctx.fillStyle = '#475569';
+        for (let y = 45; y < 275; y += 16) {
+          ctx.fillRect(tx - 10, y, 8, 2);
+        }
+
+        // Bobbin Float inside tube
+        ctx.fillStyle = floatColors[idx];
+        ctx.fillRect(tx - 8, floatY[idx], 16, 12);
+      });
+
+      return new THREE.CanvasTexture(canvas);
+    }
+
+    function buildAnesthesiaWorkstation() {
+      const group = new THREE.Group();
+      group.name = 'anesthesia_workstation';
+      group.position.set(0.05, 0, -1.65);
+
+      const drawerBlueMat = new THREE.MeshStandardMaterial({
+        color: 0xb9d3e6, // Signature light pastel blue drawers from uploaded image
+        roughness: 0.4,
+        metalness: 0.08
+      });
+      const amberGlassMat = new THREE.MeshPhysicalMaterial({
+        color: 0xd97706,
+        transparent: true,
+        opacity: 0.52,
+        roughness: 0.15,
+        metalness: 0.05
+      });
+      const darkRimMat = new THREE.MeshStandardMaterial({
+        color: 0x1e293b,
+        roughness: 0.45,
+        metalness: 0.25
+      });
+
+      const baseW = 0.78;
+      const baseD = 0.62;
+
+      // 1. White Trolley Base Frame & 4 Dual-Tone Caster Wheels
+      const baseFrame = new THREE.Mesh(new THREE.BoxGeometry(baseW, 0.06, baseD), materials.medicalWhite);
+      baseFrame.position.y = 0.14;
+      baseFrame.castShadow = true;
+      group.add(baseFrame);
+
+      const wheelPositions = [
+        [-baseW / 2 + 0.06, -baseD / 2 + 0.06],
+        [ baseW / 2 - 0.06, -baseD / 2 + 0.06],
+        [-baseW / 2 + 0.06,  baseD / 2 - 0.06],
+        [ baseW / 2 - 0.06,  baseD / 2 - 0.06]
+      ];
+      wheelPositions.forEach(([wx, wz]) => {
+        const fork = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.08, 0.08), materials.medicalWhite);
+        fork.position.set(wx, 0.11, wz);
+        group.add(fork);
+
+        const tire = new THREE.Mesh(new THREE.CylinderGeometry(0.058, 0.058, 0.036, 20), darkRimMat);
+        tire.rotation.z = Math.PI / 2;
+        tire.position.set(wx, 0.058, wz);
+        tire.castShadow = true;
+        group.add(tire);
+
+        const hub = new THREE.Mesh(new THREE.CylinderGeometry(0.042, 0.042, 0.038, 16), materials.medicalWhite);
+        hub.rotation.z = Math.PI / 2;
+        hub.position.set(wx, 0.058, wz);
+        group.add(hub);
+      });
+
+      // 2. Lower Cabinet Pedestal & Two Large Light-Blue Drawers
+      const pedestal = new THREE.Mesh(new THREE.BoxGeometry(0.68, 0.68, 0.54), materials.medicalWhite);
+      pedestal.position.y = 0.51;
+      pedestal.castShadow = true;
+      group.add(pedestal);
+
+      // Two Signature Pastel-Blue Drawers with Upper Recessed Handles
+      [0.48, 0.69].forEach(dy => {
+        const blueDrawer = new THREE.Mesh(new THREE.BoxGeometry(0.66, 0.19, 0.04), drawerBlueMat);
+        blueDrawer.position.set(0, dy, 0.275);
+        blueDrawer.castShadow = true;
+        group.add(blueDrawer);
+
+        const topHandle = new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.022, 0.018), materials.medicalBlue);
+        topHandle.position.set(0, dy + 0.075, 0.295);
+        group.add(topHandle);
+      });
+
+      // 3. Extended Stainless-Steel Work Surface Table (Extends to Right Side)
+      const workSurface = new THREE.Mesh(new THREE.BoxGeometry(0.96, 0.035, 0.62), materials.stainlessSteel);
+      workSurface.position.set(0.11, 0.87, 0.02);
+      workSurface.castShadow = true;
+      group.add(workSurface);
+
+      // Front Control Strip under Work Surface with Gas Flow Control Knobs
+      const frontStrip = new THREE.Mesh(new THREE.BoxGeometry(0.94, 0.075, 0.56), materials.medicalWhite);
+      frontStrip.position.set(0.11, 0.815, 0.02);
+      group.add(frontStrip);
+
+      [-0.22, -0.10, 0.42].forEach(kx => {
+        const knob = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.025, 16), darkRimMat);
+        knob.rotation.x = Math.PI / 2;
+        knob.position.set(kx, 0.815, 0.305);
+        group.add(knob);
+      });
+
+      // 4. Left-Mounted Integrated Breathing System (Amber Bellows Dome + Lower CO2 Absorber)
+      const sysX = -0.52;
+      const sysZ = 0.05;
+      const breathingBlock = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.11, 0.34), materials.stainlessSteel);
+      breathingBlock.position.set(sysX, 0.84, sysZ);
+      breathingBlock.castShadow = true;
+      group.add(breathingBlock);
+
+      // Top Amber Transparent Bellows Dome
+      const bellowsDome = new THREE.Mesh(new THREE.CylinderGeometry(0.105, 0.105, 0.24, 24), amberGlassMat);
+      bellowsDome.position.set(sysX, 1.01, sysZ - 0.02);
+      group.add(bellowsDome);
+
+      const bellowsInner = new THREE.Mesh(new THREE.CylinderGeometry(0.088, 0.088, 0.16, 20), materials.medicalWhite);
+      bellowsInner.position.set(sysX, 0.97, sysZ - 0.02);
+      group.add(bellowsInner);
+
+      // APL Valve & Pressure Gauge on Breathing Block
+      const aplKnob = new THREE.Mesh(new THREE.CylinderGeometry(0.032, 0.032, 0.04, 16), darkRimMat);
+      aplKnob.position.set(sysX - 0.05, 0.92, sysZ + 0.10);
+      group.add(aplKnob);
+
+      // Lower Amber Soda Lime CO2 Absorber Canister
+      const lowerCanister = new THREE.Mesh(new THREE.CylinderGeometry(0.095, 0.085, 0.32, 24), amberGlassMat);
+      lowerCanister.position.set(sysX, 0.61, sysZ + 0.02);
+      lowerCanister.castShadow = true;
+      group.add(lowerCanister);
+
+      const canisterHolder = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.03, 0.22), materials.stainlessSteel);
+      canisterHolder.position.set(sysX + 0.06, 0.44, sysZ + 0.02);
+      group.add(canisterHolder);
+
+      // 5. Upper Main Console Housing (Vaporizer Bay, Flowmeter Bank & Ventilator Display)
+      const upperBody = new THREE.Mesh(new THREE.BoxGeometry(0.70, 0.88, 0.48), materials.medicalWhite);
+      upperBody.position.set(0, 1.32, -0.04);
+      upperBody.castShadow = true;
+      group.add(upperBody);
+
+      // Top Overhang Roof Cap
+      const topRoof = new THREE.Mesh(new THREE.BoxGeometry(0.74, 0.04, 0.52), materials.medicalWhite);
+      topRoof.position.set(0, 1.77, -0.03);
+      group.add(topRoof);
+
+      // Recessed Vaporizer Bay (Left-Middle)
+      const bayBack = new THREE.Mesh(new THREE.BoxGeometry(0.36, 0.40, 0.04), materials.wallAccent);
+      bayBack.position.set(-0.13, 1.24, 0.18);
+      group.add(bayBack);
+
+      // Vaporizer 1: Sevoflurane (White Cylinder with Yellow Top Cap)
+      const vap1Body = new THREE.Mesh(new THREE.CylinderGeometry(0.068, 0.068, 0.26, 20), materials.medicalWhite);
+      vap1Body.position.set(-0.22, 1.25, 0.22);
+      vap1Body.castShadow = true;
+      group.add(vap1Body);
+
+      const vap1Cap = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.07, 0.035, 20), new THREE.MeshStandardMaterial({ color: 0xfacc15, roughness: 0.3 }));
+      vap1Cap.position.set(-0.22, 1.385, 0.22);
+      group.add(vap1Cap);
+
+      // Vaporizer 2: Halothane / Isoflurane (White Cylinder with Red Top Cap)
+      const vap2Body = new THREE.Mesh(new THREE.CylinderGeometry(0.068, 0.068, 0.26, 20), materials.medicalWhite);
+      vap2Body.position.set(-0.05, 1.25, 0.22);
+      vap2Body.castShadow = true;
+      group.add(vap2Body);
+
+      const vap2Cap = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.07, 0.035, 20), new THREE.MeshStandardMaterial({ color: 0xdc2626, roughness: 0.3 }));
+      vap2Cap.position.set(-0.05, 1.385, 0.22);
+      group.add(vap2Cap);
+
+      // Flowmeter Bank (Right-Middle) + 3 Circular Pressure Gauges Above It
+      const flowmeterFace = new THREE.Mesh(
+        new THREE.PlaneGeometry(0.22, 0.28),
+        new THREE.MeshBasicMaterial({ map: createFlowmeterBankTexture() })
+      );
+      flowmeterFace.position.set(0.19, 1.22, 0.202);
+      group.add(flowmeterFace);
+
+      [0.11, 0.19, 0.27].forEach(gx => {
+        const gauge = new THREE.Mesh(new THREE.CylinderGeometry(0.026, 0.026, 0.015, 16), materials.wallAccent);
+        gauge.rotation.x = Math.PI / 2;
+        gauge.position.set(gx, 1.41, 0.202);
+        group.add(gauge);
+      });
+
+      // Top Integrated Ventilator Display & Control Panel
+      const ventScreen = new THREE.Mesh(
+        new THREE.PlaneGeometry(0.64, 0.24),
+        new THREE.MeshBasicMaterial({ map: createVentilatorScreenTexture() })
+      );
+      ventScreen.position.set(0, 1.61, 0.202);
+      group.add(ventScreen);
+
+      // 6. Left-Mounted Articulated Arm & Multi-Parameter Patient Monitor (Matches Top-Left of Image)
+      const monArm = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.03, 0.03), materials.medicalWhite);
+      monArm.position.set(-0.48, 1.50, -0.02);
+      group.add(monArm);
+
+      const monSwivel = new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.022, 0.12, 16), darkRimMat);
+      monSwivel.position.set(-0.62, 1.55, 0.02);
+      group.add(monSwivel);
+
+      const monitorHousing = new THREE.Mesh(new THREE.BoxGeometry(0.46, 0.36, 0.07), darkRimMat);
+      monitorHousing.position.set(-0.62, 1.77, 0.04);
+      monitorHousing.rotation.y = 0.18;
+      monitorHousing.castShadow = true;
+      group.add(monitorHousing);
+
+      const monitorScreen = new THREE.Mesh(new THREE.PlaneGeometry(0.42, 0.31), materials.monitorScreen);
+      monitorScreen.position.set(-0.613, 1.77, 0.077);
+      monitorScreen.rotation.y = 0.18;
+      group.add(monitorScreen);
+
+      // Backup O2 Cylinder Mounted on Rear
+      const o2Cylinder = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.07, 0.65, 20), new THREE.MeshStandardMaterial({ color: 0x16a34a, roughness: 0.3 }));
+      o2Cylinder.position.set(-0.24, 0.55, -0.34);
+      group.add(o2Cylinder);
+
+      scene.add(group);
+      interactiveGroups['anesthesia_workstation'] = group;
+    }
+
+    // --- 5. الأذرع السقفية المعلقة (Ceiling Supply Pendants) ---
+    function buildCeilingPendants() {
+      const group = new THREE.Group();
+      group.name = 'ceiling_pendants';
+
+      function createPendantUnit(x, z, rotY) {
+        const pGroup = new THREE.Group();
+
+        // Ceiling Flange & Vertical Drop Column
+        const flange = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.18, 0.08, 24), materials.medicalWhite);
+        flange.position.set(x, roomHeight - 0.04, z);
+        pGroup.add(flange);
+
+        const dropTube = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.07, 0.85, 20), materials.medicalWhite);
+        dropTube.position.set(x, roomHeight - 0.45, z);
+        pGroup.add(dropTube);
+
+        // Articulated Horizontal Swivel Arm
+        const swivelArm = new THREE.Mesh(new THREE.BoxGeometry(0.65, 0.11, 0.13), materials.medicalWhite);
+        swivelArm.position.set(x + 0.28, roomHeight - 0.85, z + 0.15);
+        swivelArm.rotation.y = rotY;
+        pGroup.add(swivelArm);
+
+        // Service Head Console (Medical Gases & Isolated Power Outlets)
+        const headX = x + 0.52;
+        const headZ = z + 0.28;
+        const consoleBox = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.85, 0.26), materials.medicalWhite);
+        consoleBox.position.set(headX, 1.85, headZ);
+        consoleBox.rotation.y = rotY;
+        consoleBox.castShadow = true;
+        pGroup.add(consoleBox);
+
+        // Color-Coded Medical Gas Outlets (O2 White, Air Black, Vac Yellow, AGSS Purple)
+        const gasColors = [0xffffff, 0x1e293b, 0xfacc15, 0x9333ea];
+        gasColors.forEach((col, idx) => {
+          const outlet = new THREE.Mesh(
+            new THREE.CylinderGeometry(0.022, 0.022, 0.03, 16),
+            new THREE.MeshStandardMaterial({ color: col, roughness: 0.3 })
+          );
+          outlet.rotation.z = Math.PI / 2;
+          outlet.position.set(headX + 0.135, 2.08 - idx * 0.11, headZ);
+          pGroup.add(outlet);
+        });
+
+        // Equipment Shelf on Pendant
+        const shelf = new THREE.Mesh(new THREE.BoxGeometry(0.45, 0.03, 0.38), materials.stainlessSteel);
+        shelf.position.set(headX + 0.08, 1.38, headZ);
+        pGroup.add(shelf);
+
+        group.add(pGroup);
+      }
+
+      // Anesthesia Pendant (Left-Back) & Surgical Pendant (Left-Front)
+      createPendantUnit(-1.85, -1.25, -0.45);
+      createPendantUnit(-1.95, 0.55, 0.35);
+
+      scene.add(group);
+      interactiveGroups['ceiling_pendants'] = group;
+    }
+
+    // --- 6. برج الناظور الطبي المتكامل (Replicating Uploaded Real Endoscopy Tower Image) ---
+    function buildEsuAndLaparoscopicTower() {
+      const group = new THREE.Group();
+      group.name = 'esu_laparoscopic';
+      group.position.set(1.6, 0, -0.4);
+      group.rotation.y = -0.58;
+
+      const bumperBlueMat = new THREE.MeshStandardMaterial({
+        color: 0x3b82f6, // Signature medical blue corner bumpers from image
+        roughness: 0.35,
+        metalness: 0.1
+      });
+      const aluminumMat = new THREE.MeshStandardMaterial({
+        color: 0xdbeafe,
+        roughness: 0.3,
+        metalness: 0.75
+      });
+      const darkScopeMat = new THREE.MeshStandardMaterial({
+        color: 0x0f172a,
+        roughness: 0.35,
+        metalness: 0.25
+      });
+
+      const cartW = 0.64;
+      const cartD = 0.56;
+
+      // 1. Base Frame & 4 White-Rimmed Caster Wheels with Blue Protective Caps
+      const baseFrame = new THREE.Mesh(new THREE.BoxGeometry(cartW, 0.045, cartD), materials.medicalWhite);
+      baseFrame.position.y = 0.13;
+      baseFrame.castShadow = true;
+      group.add(baseFrame);
+
+      const wheelOffsets = [
+        [-cartW / 2 + 0.04, -cartD / 2 + 0.04],
+        [ cartW / 2 - 0.04, -cartD / 2 + 0.04],
+        [-cartW / 2 + 0.04,  cartD / 2 - 0.04],
+        [ cartW / 2 - 0.04,  cartD / 2 - 0.04]
+      ];
+
+      wheelOffsets.forEach(([wx, wz]) => {
+        // Blue Caster Housing Cap
+        const blueCap = new THREE.Mesh(new THREE.BoxGeometry(0.11, 0.055, 0.11), bumperBlueMat);
+        blueCap.position.set(wx, 0.135, wz);
+        group.add(blueCap);
+
+        // Dark Outer Tire
+        const tire = new THREE.Mesh(new THREE.CylinderGeometry(0.052, 0.052, 0.036, 20), darkScopeMat);
+        tire.rotation.z = Math.PI / 2;
+        tire.position.set(wx, 0.052, wz);
+        tire.castShadow = true;
+        group.add(tire);
+
+        // White Inner Wheel Hub
+        const hub = new THREE.Mesh(new THREE.CylinderGeometry(0.034, 0.034, 0.038, 16), materials.medicalWhite);
+        hub.rotation.z = Math.PI / 2;
+        hub.position.set(wx, 0.052, wz);
+        group.add(hub);
+      });
+
+      // 2. Enclosed Bottom Storage Drawer Unit (Right above base frame)
+      const drawerBox = new THREE.Mesh(new THREE.BoxGeometry(cartW - 0.06, 0.16, cartD - 0.06), materials.medicalWhite);
+      drawerBox.position.y = 0.23;
+      drawerBox.castShadow = true;
+      group.add(drawerBox);
+
+      // Recessed Horizontal Drawer Handle on Front
+      const drawerHandle = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.035, 0.015), materials.stainlessSteel);
+      drawerHandle.position.set(0, 0.23, (cartD - 0.06) / 2 + 0.005);
+      group.add(drawerHandle);
+
+      // 3. Two Side Aluminum Vertical Columns with Vertical Blue Accent Strips
+      [-cartW / 2 + 0.045, cartW / 2 - 0.045].forEach(cx => {
+        const col = new THREE.Mesh(new THREE.BoxGeometry(0.065, 1.18, 0.09), aluminumMat);
+        col.position.set(cx, 0.74, 0);
+        col.castShadow = true;
+        group.add(col);
+
+        // Blue vertical accent strip down the outer side of the column
+        const blueStrip = new THREE.Mesh(new THREE.BoxGeometry(0.008, 1.16, 0.025), bumperBlueMat);
+        blueStrip.position.set(cx + (cx > 0 ? 0.034 : -0.034), 0.74, 0);
+        group.add(blueStrip);
+      });
+
+      // 4. Four White Shelves with Signature Blue Corner Bumpers
+      const shelfHeights = [0.32, 0.62, 0.96, 1.32];
+      shelfHeights.forEach(sy => {
+        const shelf = new THREE.Mesh(new THREE.BoxGeometry(cartW, 0.032, cartD), materials.medicalWhite);
+        shelf.position.y = sy;
+        shelf.castShadow = true;
+        shelf.receiveShadow = true;
+        group.add(shelf);
+
+        // 4 Blue Corner Bumpers on every shelf
+        [
+          [-cartW / 2, -cartD / 2],
+          [ cartW / 2, -cartD / 2],
+          [-cartW / 2,  cartD / 2],
+          [ cartW / 2,  cartD / 2]
+        ].forEach(([bx, bz]) => {
+          const bumper = new THREE.Mesh(new THREE.BoxGeometry(0.085, 0.038, 0.085), bumperBlueMat);
+          bumper.position.set(bx + (bx > 0 ? -0.035 : 0.035), sy, bz + (bz > 0 ? -0.035 : 0.035));
+          group.add(bumper);
+        });
+      });
+
+      // 5. Left Side White Accessory Tray attached to the 3rd Shelf (y = 0.96)
+      const sideTray = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.022, 0.26), materials.medicalWhite);
+      sideTray.position.set(-cartW / 2 - 0.08, 0.965, 0.04);
+      sideTray.castShadow = true;
+      group.add(sideTray);
+
+      // 6. Stacked Electronic Units on the 3rd Shelf (y = 0.96):
+      // Bottom Unit: Video Image Processor
+      const procBox = new THREE.Mesh(new THREE.BoxGeometry(0.46, 0.13, 0.42), materials.medicalWhite);
+      procBox.position.set(0, 0.976 + 0.065, 0.02);
+      procBox.castShadow = true;
+      group.add(procBox);
+
+      const procFace = new THREE.Mesh(
+        new THREE.PlaneGeometry(0.44, 0.115),
+        new THREE.MeshBasicMaterial({ map: createEndoUnitPanelTexture(false) })
+      );
+      procFace.position.set(0, 0.976 + 0.065, 0.231);
+      group.add(procFace);
+
+      // Top Unit: Cold LED Light Source
+      const lightBox = new THREE.Mesh(new THREE.BoxGeometry(0.46, 0.13, 0.42), materials.medicalWhite);
+      lightBox.position.set(0, 0.976 + 0.13 + 0.065, 0.02);
+      lightBox.castShadow = true;
+      group.add(lightBox);
+
+      const lightFace = new THREE.Mesh(
+        new THREE.PlaneGeometry(0.44, 0.115),
+        new THREE.MeshBasicMaterial({ map: createEndoUnitPanelTexture(true) })
+      );
+      lightFace.position.set(0, 0.976 + 0.13 + 0.065, 0.231);
+      group.add(lightFace);
+
+      // 7. Top Wide Flat-Screen Medical Monitor with Live Endoscopic Tissue Feed
+      const monStand = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.22, 0.05), darkScopeMat);
+      monStand.position.set(0, 1.32 + 0.11, -0.02);
+      group.add(monStand);
+
+      const monFrame = new THREE.Mesh(new THREE.BoxGeometry(0.68, 0.40, 0.035), darkScopeMat);
+      monFrame.position.set(0, 1.66, 0.01);
+      monFrame.castShadow = true;
+      group.add(monFrame);
+
+      const monScreen = new THREE.Mesh(
+        new THREE.PlaneGeometry(0.64, 0.36),
+        new THREE.MeshBasicMaterial({ map: createEndoscopyScreenTexture() })
+      );
+      monScreen.position.set(0, 1.66, 0.029);
+      group.add(monScreen);
+
+      // 8. Right-Side Vertical Stainless-Steel Endoscope Holder Pole + Hanging Flexible Endoscope
+      const poleX = cartW / 2 + 0.045;
+      const poleZ = 0.08;
+      const holderPole = new THREE.Mesh(new THREE.CylinderGeometry(0.014, 0.014, 1.78, 16), materials.chrome);
+      holderPole.position.set(poleX, 1.15, poleZ);
+      holderPole.castShadow = true;
+      group.add(holderPole);
+
+      // Two Metallic Mounting Clamps securing Pole to Right Side of Shelves
+      [0.96, 1.32].forEach(cy => {
+        const clamp = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.032, 0.045), materials.stainlessSteel);
+        clamp.position.set(cartW / 2 + 0.015, cy, poleZ);
+        group.add(clamp);
+      });
+
+      // Top Angled White Hanger Bracket at Top of Pole
+      const topBracket = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.025, 0.16), materials.medicalWhite);
+      topBracket.position.set(poleX + 0.02, 2.02, poleZ);
+      topBracket.rotation.z = -0.18;
+      group.add(topBracket);
+
+      // Flexible Endoscope Control Body (Black ergonomic handle + control knobs at top)
+      const scopeControlBody = new THREE.Mesh(new THREE.CylinderGeometry(0.028, 0.022, 0.28, 16), darkScopeMat);
+      scopeControlBody.position.set(poleX + 0.04, 1.98, poleZ + 0.02);
+      scopeControlBody.rotation.z = -0.12;
+      scopeControlBody.castShadow = true;
+      group.add(scopeControlBody);
+
+      // Angulation Control Knobs on Endoscope Head
+      const knob = new THREE.Mesh(new THREE.CylinderGeometry(0.032, 0.032, 0.035, 16), materials.chrome);
+      knob.rotation.x = Math.PI / 2;
+      knob.position.set(poleX + 0.055, 2.06, poleZ + 0.045);
+      group.add(knob);
+
+      // Long Black Flexible Insertion Tube hanging vertically down along the right side
+      const scopeTubeCurve = new THREE.CatmullRomCurve3([
+        new THREE.Vector3(poleX + 0.03, 1.85, poleZ + 0.02),
+        new THREE.Vector3(poleX + 0.025, 1.25, poleZ + 0.03),
+        new THREE.Vector3(poleX + 0.02, 0.65, poleZ + 0.035),
+        new THREE.Vector3(poleX + 0.015, 0.28, poleZ + 0.04)
+      ]);
+      const scopeTube = new THREE.Mesh(new THREE.TubeGeometry(scopeTubeCurve, 24, 0.011, 10, false), darkScopeMat);
+      scopeTube.castShadow = true;
+      group.add(scopeTube);
+
+      // Lower Light-Guide Connector Head near Bottom Shelf
+      const lowerConnector = new THREE.Mesh(new THREE.CylinderGeometry(0.028, 0.026, 0.14, 16), darkScopeMat);
+      lowerConnector.position.set(poleX + 0.015, 0.25, poleZ + 0.04);
+      group.add(lowerConnector);
+
+      const connectorSilverPort = new THREE.Mesh(new THREE.CylinderGeometry(0.014, 0.014, 0.04, 12), materials.chrome);
+      connectorSilverPort.rotation.x = Math.PI / 2;
+      connectorSilverPort.position.set(poleX + 0.015, 0.25, poleZ + 0.075);
+      group.add(connectorSilverPort);
+
+      scene.add(group);
+      interactiveGroups['esu_laparoscopic'] = group;
+    }
+
+    // --- 7. طاولة مايو للأدوات وحامل المحاليل (Mayo Stand, Back Table & IV Stand) ---
+    function buildMayoAndIvTables() {
+      const group = new THREE.Group();
+      group.name = 'mayo_iv_tables';
+
+      // 1. Mayo Instrument Stand (near foot of operating table)
+      const mayoBase = new THREE.Mesh(new THREE.BoxGeometry(0.45, 0.04, 0.42), materials.stainlessSteel);
+      mayoBase.position.set(-0.65, 0.03, 0.85);
+      group.add(mayoBase);
+
+      const mayoPole = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.98, 16), materials.chrome);
+      mayoPole.position.set(-0.82, 0.52, 0.85);
+      group.add(mayoPole);
+
+      const mayoTray = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.03, 0.42), materials.sterileDrape);
+      mayoTray.position.set(-0.58, 1.02, 0.85);
+      mayoTray.castShadow = true;
+      group.add(mayoTray);
+
+      // Surgical Instruments on Mayo Tray
+      for (let i = -2; i <= 2; i++) {
+        const inst = new THREE.Mesh(new THREE.BoxGeometry(0.015, 0.01, 0.22), materials.chrome);
+        inst.position.set(-0.58 + i * 0.07, 1.04, 0.85);
+        group.add(inst);
+      }
+
+      // 2. Back Sterile Instrument Table
+      const backTableTop = new THREE.Mesh(new THREE.BoxGeometry(1.15, 0.05, 0.58), materials.sterileDrape);
+      backTableTop.position.set(-1.35, 0.88, 1.45);
+      backTableTop.rotation.y = 0.4;
+      backTableTop.castShadow = true;
+      group.add(backTableTop);
+
+      // Table Legs
+      const legOffsets = [[-0.5, -0.22], [0.5, -0.22], [-0.5, 0.22], [0.5, 0.22]];
+      legOffsets.forEach(([lx, lz]) => {
+        const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.018, 0.86, 12), materials.chrome);
+        const angle = 0.4;
+        const rx = lx * Math.cos(angle) - lz * Math.sin(angle);
+        const rz = lx * Math.sin(angle) + lz * Math.cos(angle);
+        leg.position.set(-1.35 + rx, 0.43, 1.45 + rz);
+        group.add(leg);
+      });
+
+      // 3. IV Stand with Fluid Bags (Near Anesthesia / Head)
+      const ivBase = new THREE.Mesh(new THREE.CylinderGeometry(0.24, 0.26, 0.05, 16), materials.chrome);
+      ivBase.position.set(0.65, 0.04, -1.15);
+      group.add(ivBase);
+
+      const ivPole = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.015, 1.95, 16), materials.chrome);
+      ivPole.position.set(0.65, 1.0, -1.15);
+      group.add(ivPole);
+
+      // Two IV Saline Bags
+      [-0.1, 0.1].forEach(dx => {
+        const bag = new THREE.Mesh(new THREE.BoxGeometry(0.11, 0.18, 0.04), materials.glass);
+        bag.position.set(0.65 + dx, 1.82, -1.15);
+        group.add(bag);
+      });
+
+      scene.add(group);
+      interactiveGroups['mayo_iv_tables'] = group;
+    }
+
+    // --- 8. لوحة التحكم الجدارية ونظام العزل الكهربائي IPS ---
+    function buildWallControlPanel() {
+      const group = new THREE.Group();
+      group.name = 'wall_control_ips';
+
+      // Flush-Mounted Stainless Steel Control Panel on East Wall (x = 3.03)
+      const panelFrame = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.85, 1.15), materials.stainlessSteel);
+      panelFrame.position.set(roomWidth / 2 - 0.07, 1.55, -1.2);
+      group.add(panelFrame);
+
+      const panelFace = new THREE.Mesh(new THREE.PlaneGeometry(1.08, 0.78), materials.controlPanelScreen);
+      panelFace.rotation.y = -Math.PI / 2;
+      panelFace.position.set(roomWidth / 2 - 0.092, 1.55, -1.2);
+      group.add(panelFace);
+
+      // PACS / X-Ray Digital Viewer Screen next to Control Panel
+      const pacsFrame = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.72, 0.95), materials.blackPad);
+      pacsFrame.position.set(roomWidth / 2 - 0.07, 1.6, 0.1);
+      group.add(pacsFrame);
+
+      const pacsScreen = new THREE.Mesh(
+        new THREE.PlaneGeometry(0.88, 0.65),
+        new THREE.MeshBasicMaterial({ color: 0x0c4a6e })
+      );
+      pacsScreen.rotation.y = -Math.PI / 2;
+      pacsScreen.position.set(roomWidth / 2 - 0.092, 1.6, 0.1);
+      group.add(pacsScreen);
+
+      scene.add(group);
+      interactiveGroups['wall_control_ips'] = group;
+    }
+
+    // --- 10. فتحات سحب الهواء السفلية والباب المحكم ---
+    function buildExhaustAndHermeticDoor() {
+      const group = new THREE.Group();
+      group.name = 'exhaust_hermetic_door';
+
+      // Low-Level Exhaust Grilles (Near Floor on Back & Right Walls, height ~0.25m)
+      function createExhaustGrille(x, y, z, rotY) {
+        const grilleGroup = new THREE.Group();
+        const frame = new THREE.Mesh(new THREE.BoxGeometry(0.65, 0.32, 0.03), materials.stainlessSteel);
+        grilleGroup.add(frame);
+
+        // Louver slats
+        for (let i = -3; i <= 3; i++) {
+          const slat = new THREE.Mesh(new THREE.BoxGeometry(0.58, 0.015, 0.035), materials.blackPad);
+          slat.position.y = i * 0.038;
+          grilleGroup.add(slat);
+        }
+
+        grilleGroup.position.set(x, y, z);
+        grilleGroup.rotation.y = rotY;
+        group.add(grilleGroup);
+      }
+
+      createExhaustGrille(-2.2, 0.28, -roomDepth / 2 + 0.07, 0);
+      createExhaustGrille(2.2, 0.28, -roomDepth / 2 + 0.07, 0);
+      createExhaustGrille(roomWidth / 2 - 0.07, 0.28, -2.2, -Math.PI / 2);
+
+      // Hermetically Sealed Automatic Sliding Door on East Wall (z = 1.75)
+      const doorFrame = new THREE.Mesh(new THREE.BoxGeometry(0.08, 2.25, 1.45), materials.stainlessSteel);
+      doorFrame.position.set(roomWidth / 2 - 0.07, 1.125, 1.75);
+      group.add(doorFrame);
+
+      const doorLeaf = new THREE.Mesh(new THREE.BoxGeometry(0.06, 2.18, 1.36), materials.wallAccent);
+      doorLeaf.position.set(roomWidth / 2 - 0.11, 1.09, 1.75);
+      group.add(doorLeaf);
+
+      // Double-glazed Viewing Window in Door
+      const doorWindow = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.75, 0.45), materials.glass);
+      doorWindow.position.set(roomWidth / 2 - 0.11, 1.45, 1.75);
+      group.add(doorWindow);
+
+      // Touchless Wave-to-Open Sensor next to Door
+      const sensor = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.14, 0.14), materials.medicalBlue);
+      sensor.position.set(roomWidth / 2 - 0.08, 1.25, 0.85);
+      group.add(sensor);
+
+      scene.add(group);
+      interactiveGroups['exhaust_hermetic_door'] = group;
+    }
+
+    // --- 11. جهاز الصدمة الكهربائية (DC Shock) وعربة الطوارئ ---
+    function createDefibScreenTexture() {
+      const canvas = document.createElement('canvas');
+      canvas.width = 360;
+      canvas.height = 240;
+      const ctx = canvas.getContext('2d');
+
+      ctx.fillStyle = '#090d16';
+      ctx.fillRect(0, 0, 360, 240);
+
+      // Top status bar
+      ctx.fillStyle = '#dc2626';
+      ctx.fillRect(10, 10, 340, 34);
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'bold 18px monospace';
+      ctx.fillText('DEFIB READY   200 J', 24, 33);
+
+      // ECG Rhythm Waveform
+      ctx.strokeStyle = '#22c55e';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      for (let x = 15; x < 345; x += 2) {
+        let y = 115;
+        const mod = x % 75;
+        if (mod === 25) y = 65;
+        else if (mod === 29) y = 155;
+        else if (mod === 33) y = 100;
+        if (x === 15) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      }
+      ctx.stroke();
+
+      // Bottom energy & sync indicators
+      ctx.fillStyle = '#1e293b';
+      ctx.fillRect(12, 175, 160, 50);
+      ctx.fillStyle = '#facc15';
+      ctx.font = 'bold 20px monospace';
+      ctx.fillText('SYNC: OFF', 26, 207);
+
+      ctx.fillStyle = '#1e293b';
+      ctx.fillRect(186, 175, 162, 50);
+      ctx.fillStyle = '#38bdf8';
+      ctx.fillText('HR: 78 BPM', 200, 207);
+
+      return new THREE.CanvasTexture(canvas);
+    }
+
+    function buildDefibrillatorAndCrashCart() {
+      const group = new THREE.Group();
+      group.name = 'defibrillator_crash_cart';
+      group.position.set(-1.35, 0, -2.25);
+      group.rotation.y = 0.25;
+
+      const redCrashMat = new THREE.MeshStandardMaterial({
+        color: 0xdc2626, // Standard Emergency Crash Cart Red
+        roughness: 0.35,
+        metalness: 0.15
+      });
+      const darkTrimMat = new THREE.MeshStandardMaterial({
+        color: 0x1e293b,
+        roughness: 0.45,
+        metalness: 0.25
+      });
+
+      const cartW = 0.62;
+      const cartD = 0.48;
+
+      // 1. Crash Cart Base & 4 Caster Wheels
+      const base = new THREE.Mesh(new THREE.BoxGeometry(cartW + 0.04, 0.05, cartD + 0.04), darkTrimMat);
+      base.position.y = 0.11;
+      base.castShadow = true;
+      group.add(base);
+
+      [
+        [-cartW / 2 + 0.05, -cartD / 2 + 0.05],
+        [ cartW / 2 - 0.05, -cartD / 2 + 0.05],
+        [-cartW / 2 + 0.05,  cartD / 2 - 0.05],
+        [ cartW / 2 - 0.05,  cartD / 2 - 0.05]
+      ].forEach(([wx, wz]) => {
+        const wheel = new THREE.Mesh(new THREE.CylinderGeometry(0.048, 0.048, 0.032, 16), darkTrimMat);
+        wheel.rotation.z = Math.PI / 2;
+        wheel.position.set(wx, 0.048, wz);
+        group.add(wheel);
+      });
+
+      // 2. Red Multi-Drawer Emergency Cabinet Body
+      const cabinet = new THREE.Mesh(new THREE.BoxGeometry(cartW, 0.78, cartD), redCrashMat);
+      cabinet.position.y = 0.52;
+      cabinet.castShadow = true;
+      group.add(cabinet);
+
+      // 4 White-Trimmed Drawers with Chrome Handles
+      [0.24, 0.40, 0.58, 0.78].forEach((dy, idx) => {
+        const drawerH = idx >= 2 ? 0.16 : 0.12;
+        const drawerFace = new THREE.Mesh(new THREE.BoxGeometry(cartW - 0.06, drawerH, 0.02), materials.medicalWhite);
+        drawerFace.position.set(0, dy, cartD / 2 + 0.008);
+        group.add(drawerFace);
+
+        const handle = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.018, 0.018), materials.chrome);
+        handle.position.set(0, dy, cartD / 2 + 0.022);
+        group.add(handle);
+      });
+
+      // Top Stainless-Steel Work Tray
+      const topTray = new THREE.Mesh(new THREE.BoxGeometry(cartW + 0.04, 0.03, cartD + 0.04), materials.stainlessSteel);
+      topTray.position.y = 0.925;
+      topTray.castShadow = true;
+      group.add(topTray);
+
+      // Side Emergency O2 Cylinder on Left of Crash Cart
+      const o2Tank = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.055, 0.055, 0.56, 16),
+        new THREE.MeshStandardMaterial({ color: 0x16a34a, roughness: 0.3 })
+      );
+      o2Tank.position.set(-cartW / 2 - 0.07, 0.48, 0);
+      group.add(o2Tank);
+
+      // 3. Biphasic Defibrillator (DC Shock Unit) on Top of Crash Cart
+      const defibW = 0.38;
+      const defibH = 0.32;
+      const defibD = 0.28;
+
+      const defibBody = new THREE.Mesh(new THREE.BoxGeometry(defibW, defibH, defibD), materials.medicalWhite);
+      defibBody.position.set(0, 0.94 + defibH / 2, 0.02);
+      defibBody.castShadow = true;
+      group.add(defibBody);
+
+      // Top Carrying Handle
+      const carryHandle = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.035, 0.04), darkTrimMat);
+      carryHandle.position.set(0, 0.94 + defibH + 0.025, 0.02);
+      group.add(carryHandle);
+
+      // Defibrillator ECG & Energy Screen
+      const defibScreen = new THREE.Mesh(
+        new THREE.PlaneGeometry(0.22, 0.16),
+        new THREE.MeshBasicMaterial({ map: createDefibScreenTexture() })
+      );
+      defibScreen.position.set(-0.05, 1.13, defibD / 2 + 0.022);
+      group.add(defibScreen);
+
+      // Rotary Energy Selector Dial (Yellow/Amber) & Orange Shock Button
+      const energyDial = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.026, 0.026, 0.02, 16),
+        new THREE.MeshStandardMaterial({ color: 0xfacc15, roughness: 0.3 })
+      );
+      energyDial.rotation.x = Math.PI / 2;
+      energyDial.position.set(0.12, 1.16, defibD / 2 + 0.025);
+      group.add(energyDial);
+
+      const shockBtn = new THREE.Mesh(
+        new THREE.BoxGeometry(0.05, 0.04, 0.02),
+        new THREE.MeshStandardMaterial({ color: 0xf97316, emissive: 0x9a3412, roughness: 0.3 })
+      );
+      shockBtn.position.set(0.12, 1.07, defibD / 2 + 0.025);
+      group.add(shockBtn);
+
+      // Two External Defibrillator Paddles (Apex & Sternum) docked on Sides
+      [-defibW / 2 - 0.045, defibW / 2 + 0.045].forEach((px, idx) => {
+        const paddleBase = new THREE.Mesh(new THREE.BoxGeometry(0.075, 0.12, 0.11), materials.medicalWhite);
+        paddleBase.position.set(px, 1.08, 0.02);
+        paddleBase.castShadow = true;
+        group.add(paddleBase);
+
+        const metalPlate = new THREE.Mesh(new THREE.BoxGeometry(0.015, 0.10, 0.09), materials.chrome);
+        metalPlate.position.set(px + (idx === 0 ? -0.04 : 0.04), 1.08, 0.02);
+        group.add(metalPlate);
+
+        const paddleGrip = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.018, 0.11, 12), darkTrimMat);
+        paddleGrip.position.set(px, 1.18, 0.02);
+        group.add(paddleGrip);
+      });
+
+      scene.add(group);
+      interactiveGroups['defibrillator_crash_cart'] = group;
+    }
+
+    // Build All 3D Models
+    buildRoomArchitecture();
+    buildOperatingTable();
+    buildSurgicalLights();
+    buildLaminarAirflowSystem();
+    buildAnesthesiaWorkstation();
+    buildCeilingPendants();
+    buildEsuAndLaparoscopicTower();
+    buildMayoAndIvTables();
+    buildWallControlPanel();
+    buildExhaustAndHermeticDoor();
+    buildDefibrillatorAndCrashCart();
+
+    /**
+     * ============================================================================
+     * 5. إنشاء المؤشرات التفاعلية ثلاثية الأبعاد (HTML Projected Pins & Raycasting)
+     * ============================================================================
+     */
+    const hotspotsLayer = document.getElementById('hotspots-layer');
+    const partsListEl = document.getElementById('parts-list');
+    const pinElements = {};
+    let selectedPartIndex = -1;
+    let showPins = true;
+
+    OR_COMPONENTS_DATA.forEach((part, index) => {
+      // 1. Create Floating 3D Hotspot Pin
+      const pin = document.createElement('div');
+      pin.className = 'hotspot-pin';
+      pin.dataset.index = index;
+      pin.innerHTML = `
+        <div class="pin-badge">${part.number}</div>
+        <div class="pin-label">${part.title}</div>
+      `;
+      pin.addEventListener('click', (e) => {
+        e.stopPropagation();
+        selectComponent(index);
+      });
+      hotspotsLayer.appendChild(pin);
+      pinElements[part.id] = pin;
+
+      // 2. Create Sidebar Index Card (Purple & White)
+      const card = document.createElement('div');
+      card.className = 'glass-card p-3 rounded-xl cursor-pointer flex items-center gap-3';
+      card.dataset.index = index;
+      card.innerHTML = `
+        <div class="w-8 h-8 rounded-lg bg-white text-purple-900 text-xs flex items-center justify-center shrink-0 shadow">
+          ${part.number}
+        </div>
+        <div class="min-w-0 flex-1">
+          <h4 class="text-xs text-white truncate">${part.title}</h4>
+          <p class="text-[10px] text-purple-200 truncate">${part.category}</p>
+        </div>
+        <i class="fa-solid ${part.icon} text-white text-xs"></i>
+      `;
+      card.addEventListener('click', () => selectComponent(index));
+      partsListEl.appendChild(card);
+    });
+
+    /**
+     * ============================================================================
+     * 6. التفاعل، تحريك الكاميرا السلس، وعرض الشرح التفصيلي
+     * ============================================================================
+     */
+    let targetCamPos = null;
+    let targetControlsLookAt = null;
+    let isCameraAnimating = false;
+
+    const detailDrawer = document.getElementById('detail-drawer');
+    const indexDrawer = document.getElementById('index-drawer');
+
+    function animateCameraTo(pos, lookAt) {
+      targetCamPos = pos.clone();
+      targetControlsLookAt = lookAt.clone();
+      isCameraAnimating = true;
+    }
+
+    function selectComponent(index) {
+      if (index < 0 || index >= OR_COMPONENTS_DATA.length) return;
+      selectedPartIndex = index;
+      const part = OR_COMPONENTS_DATA[index];
+
+      // Update Pin Selection State
+      Object.values(pinElements).forEach(el => el.classList.remove('selected'));
+      if (pinElements[part.id]) pinElements[part.id].classList.add('selected');
+
+      // Update Index Cards Active State
+      document.querySelectorAll('#parts-list .glass-card').forEach((card, idx) => {
+        if (idx === index) {
+          card.classList.add('active');
+          card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        } else {
+          card.classList.remove('active');
+        }
+      });
+
+      // Populate Left Detail Drawer
+      document.getElementById('detail-number').textContent = part.number;
+      document.getElementById('detail-category').textContent = part.category;
+      document.getElementById('detail-title').textContent = part.title;
+      document.getElementById('detail-en-title').textContent = part.enTitle;
+      document.getElementById('detail-function').textContent = part.functionDesc;
+      document.getElementById('detail-safety').textContent = part.safety;
+
+      const compList = document.getElementById('detail-components');
+      compList.innerHTML = part.components.map(c => `<li>${c}</li>`).join('');
+
+      const specsDiv = document.getElementById('detail-specs');
+      specsDiv.innerHTML = part.specs.map(s => `
+        <div class="flex items-start gap-2">
+          <i class="fa-solid fa-check-circle text-purple-700 mt-1 text-[11px]"></i>
+          <span>${s}</span>
+        </div>
+      `).join('');
+
+      // Update Tour Indicator
+      document.getElementById('tour-indicator').textContent = `${part.number} / ${OR_COMPONENTS_DATA.length}`;
+
+      // Show/Hide Interactive Operating Table Hand Control Panel
+      const tableRemotePanel = document.getElementById('table-remote-panel');
+      if (part.id === 'operating_table') {
+        tableRemotePanel.classList.remove('hidden');
+      } else {
+        tableRemotePanel.classList.add('hidden');
+      }
+
+      // Open Detail Drawer & Focus Camera
+      detailDrawer.classList.remove('closed');
+      animateCameraTo(part.camPos, part.camTarget);
+    }
+
+    // Operating Table Hand Control Interactive Commands
+    document.querySelectorAll('.table-ctrl-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const cmd = btn.dataset.tableCmd;
+        if (cmd === 'heightUp') tableAnimState.targetHeight = Math.min(0.22, tableAnimState.targetHeight + 0.07);
+        if (cmd === 'heightDown') tableAnimState.targetHeight = Math.max(-0.14, tableAnimState.targetHeight - 0.07);
+        if (cmd === 'trendHeadDown') tableAnimState.targetTrend = Math.min(0.24, tableAnimState.targetTrend + 0.08);
+        if (cmd === 'trendHeadUp') tableAnimState.targetTrend = Math.max(-0.24, tableAnimState.targetTrend - 0.08);
+        if (cmd === 'tiltLeft') tableAnimState.targetTilt = Math.min(0.24, tableAnimState.targetTilt + 0.08);
+        if (cmd === 'tiltRight') tableAnimState.targetTilt = Math.max(-0.24, tableAnimState.targetTilt - 0.08);
+        if (cmd === 'backUp') tableAnimState.targetBack = Math.min(0.55, tableAnimState.targetBack + 0.14);
+        if (cmd === 'backDown') tableAnimState.targetBack = Math.max(0, tableAnimState.targetBack - 0.14);
+      });
+    });
+
+    document.getElementById('btn-table-reset').addEventListener('click', () => {
+      tableAnimState.targetHeight = 0;
+      tableAnimState.targetTrend = 0;
+      tableAnimState.targetTilt = 0;
+      tableAnimState.targetBack = 0;
+    });
+
+    // Raycasting setup for clicking 3D equipment models directly
+    const raycaster = new THREE.Raycaster();
+    const pointer = new THREE.Vector2();
+    const pointerDownPos = { x: 0, y: 0 };
+
+    renderer.domElement.addEventListener('pointerdown', (e) => {
+      pointerDownPos.x = e.clientX;
+      pointerDownPos.y = e.clientY;
+    });
+
+    renderer.domElement.addEventListener('pointerup', (e) => {
+      // Only trigger click if user didn't drag/rotate camera
+      const dist = Math.hypot(e.clientX - pointerDownPos.x, e.clientY - pointerDownPos.y);
+      if (dist > 6) return;
+
+      pointer.x = (e.clientX / window.innerWidth) * 2 - 1;
+      pointer.y = -(e.clientY / window.innerHeight) * 2 + 1;
+      raycaster.setFromCamera(pointer, camera);
+
+      // Check intersections with equipment groups (excluding floor_walls unless clicked specifically)
+      const equipmentIds = OR_COMPONENTS_DATA.map(p => p.id).filter(id => id !== 'floor_walls');
+      const objectsToTest = equipmentIds.map(id => interactiveGroups[id]).filter(Boolean);
+      const intersects = raycaster.intersectObjects(objectsToTest, true);
+
+      if (intersects.length > 0) {
+        let obj = intersects[0].object;
+        while (obj && !obj.name) {
+          obj = obj.parent;
+        }
+        if (obj && obj.name) {
+          const foundIdx = OR_COMPONENTS_DATA.findIndex(p => p.id === obj.name);
+          if (foundIdx !== -1) {
+            selectComponent(foundIdx);
+          }
+        }
+      }
+    });
+
+    // Camera Presets Logic
+    const CAMERA_PRESETS = {
+      overview:   { pos: new THREE.Vector3(4.3, 2.7, 4.3), target: new THREE.Vector3(0, 1.1, 0) },
+      surgical:   { pos: new THREE.Vector3(2.4, 2.1, 2.4), target: new THREE.Vector3(0, 1.1, 0) },
+      anesthesia: { pos: new THREE.Vector3(1.5, 1.85, 0.2), target: new THREE.Vector3(-0.6, 1.35, -1.4) },
+      hvac:       { pos: new THREE.Vector3(3.2, 2.6, 3.2), target: new THREE.Vector3(0, 2.5, 0) },
+      walls:      { pos: new THREE.Vector3(0.4, 1.65, 1.2), target: new THREE.Vector3(2.9, 1.35, -0.3) }
+    };
+
+    document.querySelectorAll('.cam-preset-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.cam-preset-btn').forEach(b => {
+          b.classList.remove('active', 'bg-white', 'text-purple-900');
+          b.classList.add('bg-purple-950/80', 'text-white');
+        });
+        btn.classList.add('active', 'bg-white', 'text-purple-900');
+        btn.classList.remove('bg-purple-950/80', 'text-white');
+
+        const preset = CAMERA_PRESETS[btn.dataset.preset];
+        if (preset) animateCameraTo(preset.pos, preset.target);
+      });
+    });
+
+    // UI Buttons Event Listeners
+    document.getElementById('btn-toggle-index').addEventListener('click', () => {
+      indexDrawer.classList.toggle('closed');
+    });
+    document.getElementById('close-index-btn').addEventListener('click', () => {
+      indexDrawer.classList.add('closed');
+    });
+    document.getElementById('close-detail-btn').addEventListener('click', () => {
+      detailDrawer.classList.add('closed');
+    });
+
+    document.getElementById('btn-toggle-airflow').addEventListener('click', () => {
+      showAirflow = !showAirflow;
+      if (airflowParticles) airflowParticles.visible = showAirflow;
+      document.getElementById('airflow-btn-text').textContent = showAirflow
+        ? 'إخفاء تدفق الهواء HEPA'
+        : 'إظهار تدفق الهواء HEPA';
+    });
+
+    document.getElementById('btn-toggle-pins').addEventListener('click', () => {
+      showPins = !showPins;
+      hotspotsLayer.style.display = showPins ? 'block' : 'none';
+      document.getElementById('pins-btn-text').textContent = showPins
+        ? 'إخفاء المؤشرات'
+        : 'إظهار المؤشرات';
+    });
+
+    // Next / Prev Guided Tour Buttons
+    function goNextPart() {
+      const next = (selectedPartIndex + 1) % OR_COMPONENTS_DATA.length;
+      selectComponent(next);
+    }
+    function goPrevPart() {
+      const prev = selectedPartIndex <= 0 ? OR_COMPONENTS_DATA.length - 1 : selectedPartIndex - 1;
+      selectComponent(prev);
+    }
+
+    document.getElementById('btn-next-part').addEventListener('click', goNextPart);
+    document.getElementById('btn-prev-part').addEventListener('click', goPrevPart);
+    document.getElementById('drawer-next-btn').addEventListener('click', goNextPart);
+    document.getElementById('drawer-prev-btn').addEventListener('click', goPrevPart);
+    document.getElementById('drawer-focus-btn').addEventListener('click', () => {
+      if (selectedPartIndex !== -1) {
+        const part = OR_COMPONENTS_DATA[selectedPartIndex];
+        animateCameraTo(part.camPos, part.camTarget);
+      }
+    });
+
+    // Cancel camera auto-animation if user manually interacts with OrbitControls
+    controls.addEventListener('start', () => {
+      isCameraAnimating = false;
+    });
+
+    /**
+     * ============================================================================
+     * 7. تحديث مواقع المؤشرات 3D وحلقة الرسم المستمرة (Animation Loop)
+     * ============================================================================
+     */
+    const tempVec = new THREE.Vector3();
+
+    function updateHotspotsPosition() {
+      if (!showPins) return;
+      OR_COMPONENTS_DATA.forEach(part => {
+        const pin = pinElements[part.id];
+        if (!pin) return;
+
+        tempVec.copy(part.pinOffset);
+        tempVec.project(camera);
+
+        // Hide if behind camera
+        if (tempVec.z > 1) {
+          pin.style.opacity = '0';
+          pin.style.pointerEvents = 'none';
+        } else {
+          const x = (tempVec.x * 0.5 + 0.5) * window.innerWidth;
+          const y = (-(tempVec.y * 0.5) + 0.5) * window.innerHeight;
+          pin.style.left = `${x}px`;
+          pin.style.top = `${y}px`;
+          pin.style.opacity = '1';
+          pin.style.pointerEvents = 'auto';
+        }
+      });
+    }
+
+    function animate() {
+      requestAnimationFrame(animate);
+
+      // Smooth Camera Flight
+      if (isCameraAnimating && targetCamPos && targetControlsLookAt) {
+        camera.position.lerp(targetCamPos, 0.065);
+        controls.target.lerp(targetControlsLookAt, 0.065);
+        if (camera.position.distanceTo(targetCamPos) < 0.03 && controls.target.distanceTo(targetControlsLookAt) < 0.03) {
+          isCameraAnimating = false;
+        }
+      }
+
+      // Smooth Operating Table Electro-Hydraulic Kinematics
+      if (tableDynamicParts.tableTopGroup) {
+        tableAnimState.heightOffset += (tableAnimState.targetHeight - tableAnimState.heightOffset) * 0.08;
+        tableAnimState.trendAngle += (tableAnimState.targetTrend - tableAnimState.trendAngle) * 0.08;
+        tableAnimState.tiltAngle += (tableAnimState.targetTilt - tableAnimState.tiltAngle) * 0.08;
+        tableAnimState.backAngle += (tableAnimState.targetBack - tableAnimState.backAngle) * 0.08;
+
+        tableDynamicParts.tableTopGroup.position.y = 0.78 + tableAnimState.heightOffset;
+        tableDynamicParts.innerColumn.position.y = 0.56 + tableAnimState.heightOffset * 0.85;
+        tableDynamicParts.tableTopGroup.rotation.x = tableAnimState.trendAngle;
+        tableDynamicParts.tableTopGroup.rotation.z = tableAnimState.tiltAngle;
+        tableDynamicParts.backrestPivot.rotation.x = tableAnimState.backAngle;
+      }
+
+      // Laminar Airflow Downward Particle Simulation
+      if (showAirflow && airflowParticles) {
+        const posAttr = airflowParticles.geometry.attributes.position;
+        const arr = posAttr.array;
+        for (let i = 0; i < airflowVelocities.length; i++) {
+          arr[i * 3 + 1] -= airflowVelocities[i];
+          // Outward deflection near operating table height (y ~ 1.0)
+          if (arr[i * 3 + 1] < 1.15) {
+            arr[i * 3] += (arr[i * 3] >= 0 ? 0.006 : -0.006);
+            arr[i * 3 + 2] += (arr[i * 3 + 2] >= 0 ? 0.006 : -0.006);
+          }
+          // Reset back to HEPA ceiling canopy when reaching floor
+          if (arr[i * 3 + 1] < 0.15) {
+            arr[i * 3] = (Math.random() - 0.5) * 2.55;
+            arr[i * 3 + 1] = roomHeight - 0.2;
+            arr[i * 3 + 2] = (Math.random() - 0.5) * 2.55;
+          }
+        }
+        posAttr.needsUpdate = true;
+      }
+
+      controls.update();
+      updateHotspotsPosition();
+      renderer.render(scene, camera);
+    }
+
+    // Handle Window Resize
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+    // Start Animation after window load
+    window.onload = function () {
+      const loader = document.getElementById('loader');
+      setTimeout(() => {
+        loader.style.opacity = '0';
+        setTimeout(() => loader.remove(), 500);
+      }, 450);
+
+      // Collapse index drawer automatically on small mobile screens
+      if (window.innerWidth < 640) {
+        indexDrawer.classList.add('closed');
+      }
+
+      animate();
+    };
+  </script>
+</body>
+</html>

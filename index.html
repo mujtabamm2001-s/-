@@ -252,6 +252,11 @@
         <span id="zones-btn-text">مناطق التعقيم</span>
       </button>
 
+      <button id="btn-toggle-services" class="px-3 py-1.5 rounded-xl bg-purple-700 hover:bg-purple-600 text-xs text-white border border-white/40 flex items-center gap-1.5 transition shadow">
+        <i class="fa-solid fa-route"></i>
+        <span id="services-btn-text">خطوط الغازات والخلوص</span>
+      </button>
+
       <button id="btn-open-feedback" class="px-3 py-1.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-xs text-purple-950 border border-white/60 flex items-center gap-1.5 transition shadow">
         <i class="fa-solid fa-comment-medical"></i>
         <span>ملاحظة مختص</span>
@@ -304,6 +309,23 @@
       <div class="flex items-center gap-2">
         <span class="w-3 h-3 rounded-sm bg-amber-400/70 border border-white inline-block shrink-0"></span>
         <span class="text-amber-100">منطقة شبه مقيدة (Semi-Restricted - حركة الطاقم)</span>
+      </div>
+    </div>
+
+    <!-- Medical Gas Lines & Clearances Legend (Hidden until toggled) -->
+    <div id="services-legend" class="hidden p-2.5 bg-purple-950/90 border-b border-white/25 text-[11px] space-y-1.5">
+      <div class="text-purple-100 font-bold">خطوط الغازات الطبية ومساحات الخلوص (Clearances):</div>
+      <div class="flex items-center gap-2">
+        <span class="w-3 h-1.5 rounded-full bg-emerald-400 inline-block shrink-0"></span>
+        <span class="text-emerald-100">أوكسجين طبي (O2) ومسار التخدير</span>
+      </div>
+      <div class="flex items-center gap-2">
+        <span class="w-3 h-1.5 rounded-full bg-amber-300 inline-block shrink-0"></span>
+        <span class="text-amber-100">شفط جراحي (Vacuum) وخدمات الجراحة</span>
+      </div>
+      <div class="flex items-center gap-2">
+        <span class="w-3 h-3 rounded-sm bg-fuchsia-400/35 border border-fuchsia-300 inline-block shrink-0"></span>
+        <span class="text-fuchsia-100">نطاق حركة وخلوص الطاولة والأجهزة</span>
       </div>
     </div>
 
@@ -1202,6 +1224,96 @@
       return new THREE.CanvasTexture(canvas);
     }
 
+    // نسيج الواجهة الأمامية لجهاز الكي الجراحي Schuco 120 (شاشة CUT الصفراء 006 وشاشة ENDO الزرقاء 012)
+    function createSchuco120PanelTexture() {
+      const canvas = document.createElement('canvas');
+      canvas.width = 512;
+      canvas.height = 170;
+      const ctx = canvas.getContext('2d');
+
+      // خلفية الواجهة البيضاء
+      ctx.fillStyle = '#f8fafc';
+      ctx.fillRect(0, 0, 512, 170);
+
+      // إطار سفلي رمادي خفيف
+      ctx.strokeStyle = '#cbd5e1';
+      ctx.lineWidth = 3;
+      ctx.strokeRect(4, 4, 504, 162);
+
+      // اسم الجهاز Schuco 120
+      ctx.fillStyle = '#1e293b';
+      ctx.font = 'bold 16px sans-serif';
+      ctx.fillText('Schuco 120', 18, 28);
+
+      // شاشة CUT الصفراء (006)
+      ctx.fillStyle = '#fef08a';
+      ctx.fillRect(18, 38, 92, 62);
+      ctx.strokeStyle = '#ca8a04';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(18, 38, 92, 62);
+
+      ctx.fillStyle = '#854d0e';
+      ctx.font = 'bold 12px monospace';
+      ctx.fillText('CUT', 24, 52);
+
+      ctx.fillStyle = '#15803d';
+      ctx.font = 'bold 28px monospace';
+      ctx.fillText('006', 32, 86);
+
+      // شاشة ENDO الزرقاء (012)
+      ctx.fillStyle = '#2563eb';
+      ctx.fillRect(122, 38, 92, 62);
+      ctx.strokeStyle = '#1d4ed8';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(122, 38, 92, 62);
+
+      ctx.fillStyle = '#dbeafe';
+      ctx.font = 'bold 12px monospace';
+      ctx.fillText('ENDO', 128, 52);
+
+      ctx.fillStyle = '#f8fafc';
+      ctx.font = 'bold 26px monospace';
+      ctx.fillText('012', 136, 86);
+
+      // أزرار الأنماط الوسطية (أصفر، أزرق، أزرق)
+      const modeBtnCols = ['#facc15', '#3b82f6', '#2563eb'];
+      modeBtnCols.forEach((col, i) => {
+        ctx.fillStyle = '#4ade80';
+        ctx.beginPath();
+        ctx.arc(244 + i * 28, 24, 5, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.fillStyle = col;
+        ctx.fillRect(234 + i * 28, 36, 20, 26);
+      });
+
+      // شعار Schuco الدائري على اليمين
+      ctx.strokeStyle = '#0f172a';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.arc(365, 55, 22, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.fillStyle = '#0f172a';
+      ctx.font = 'bold 20px serif';
+      ctx.fillText('S', 359, 62);
+      ctx.font = 'bold 13px sans-serif';
+      ctx.fillText('Schuco', 343, 94);
+
+      // منافذ التوصيل السفلية (أبيض، أزرق، أحمر/أزرق)
+      const portColors = ['#94a3b8', '#2563eb', '#dc2626'];
+      portColors.forEach((pCol, idx) => {
+        ctx.fillStyle = pCol;
+        ctx.beginPath();
+        ctx.arc(245 + idx * 46, 134, 13, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = '#334155';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+      });
+
+      return new THREE.CanvasTexture(canvas);
+    }
+
     const screenTextures = {
       vitals: createMonitorTexture(),
       endo: createEndoscopyScreenTexture(),
@@ -1291,6 +1403,7 @@
     const interactiveGroups = {};
     let patientGroup = null;
     let zonesOverlayGroup = null;
+    let servicesOverlayGroup = null;
     const roomWidth = 6.2;
     const roomDepth = 6.2;
     const roomHeight = 3.35;
@@ -1433,6 +1546,45 @@
       zonesOverlayGroup.add(semiRestrictedRing);
 
       group.add(zonesOverlayGroup);
+
+      // طبقة خطوط الغازات الطبية المبسطة ومساحات الخلوص الهندسية (Medical Gas Lines & Clearances)
+      servicesOverlayGroup = new THREE.Group();
+      servicesOverlayGroup.visible = false;
+
+      // نطاق الخلوص الآمن حول طاولة العمليات
+      const tableClearanceZone = new THREE.Mesh(
+        new THREE.PlaneGeometry(2.15, 2.55),
+        new THREE.MeshBasicMaterial({ color: 0xe879f9, transparent: true, opacity: 0.16, depthWrite: false })
+      );
+      tableClearanceZone.rotation.x = -Math.PI / 2;
+      tableClearanceZone.position.set(0, 0.008, 0.05);
+      servicesOverlayGroup.add(tableClearanceZone);
+
+      // خط إمداد الأوكسجين (O2) من الذراع السقفية إلى محطة التخدير
+      const o2Curve = new THREE.CatmullRomCurve3([
+        new THREE.Vector3(-1.35, 1.95, -0.95),
+        new THREE.Vector3(-0.75, 1.65, -1.35),
+        new THREE.Vector3(-0.22, 1.15, -1.58)
+      ]);
+      const o2Pipe = new THREE.Mesh(
+        new THREE.TubeGeometry(o2Curve, 24, 0.016, 10, false),
+        new THREE.MeshStandardMaterial({ color: 0x22c55e, roughness: 0.3, metalness: 0.2 })
+      );
+      servicesOverlayGroup.add(o2Pipe);
+
+      // خط الشفط الجراحي (Vacuum) من الذراع السقفية نحو منطقة الجراحة
+      const vacCurve = new THREE.CatmullRomCurve3([
+        new THREE.Vector3(-1.42, 1.82, 0.85),
+        new THREE.Vector3(-0.65, 1.35, 0.95),
+        new THREE.Vector3(0.45, 0.92, 0.65)
+      ]);
+      const vacPipe = new THREE.Mesh(
+        new THREE.TubeGeometry(vacCurve, 24, 0.016, 10, false),
+        new THREE.MeshStandardMaterial({ color: 0xfacc15, roughness: 0.3, metalness: 0.2 })
+      );
+      servicesOverlayGroup.add(vacPipe);
+
+      group.add(servicesOverlayGroup);
 
       scene.add(group);
       interactiveGroups['floor_walls'] = group;
@@ -2385,45 +2537,187 @@
       group.position.set(1.15, 0, 1.05);
       group.rotation.y = -0.65;
 
-      const standBase = new THREE.Mesh(new THREE.CylinderGeometry(0.24, 0.26, 0.04, 20), materials.stainlessSteel);
-      standBase.position.y = 0.04;
+      const blueCableMat = new THREE.MeshStandardMaterial({
+        color: 0x2563eb,
+        roughness: 0.4,
+        metalness: 0.08
+      });
+      const rotaryDialMat = new THREE.MeshStandardMaterial({
+        color: 0x334155,
+        roughness: 0.45,
+        metalness: 0.3
+      });
+
+      // عربة طبية بعجلات بارتفاع عملي (0.86 م) لرفع جهاز الكي عن الأرضية
+      const cartY = 0.86;
+
+      // عجلات العربة الأربعة
+      [
+        [-0.22, -0.17],
+        [ 0.22, -0.17],
+        [-0.22,  0.17],
+        [ 0.22,  0.17]
+      ].forEach(([wx, wz]) => {
+        const wheel = new THREE.Mesh(new THREE.CylinderGeometry(0.042, 0.042, 0.028, 16), rotaryDialMat);
+        wheel.rotation.z = Math.PI / 2;
+        wheel.position.set(wx, 0.042, wz);
+        wheel.castShadow = true;
+        group.add(wheel);
+      });
+
+      // قاعدة العربة السفلية
+      const bottomBase = new THREE.Mesh(new THREE.BoxGeometry(0.52, 0.035, 0.40), materials.medicalWhite);
+      bottomBase.position.y = 0.095;
+      bottomBase.castShadow = true;
+      group.add(bottomBase);
+
+      // أعمدة العربة الرئيسية
+      [
+        [-0.22, -0.15],
+        [ 0.22, -0.15],
+        [-0.22,  0.15],
+        [ 0.22,  0.15]
+      ].forEach(([px, pz]) => {
+        const post = new THREE.Mesh(new THREE.CylinderGeometry(0.016, 0.016, cartY - 0.09, 14), materials.stainlessSteel);
+        post.position.set(px, 0.095 + (cartY - 0.09) / 2, pz);
+        post.castShadow = true;
+        group.add(post);
+      });
+
+      // رف وسطي للعربة
+      const midShelf = new THREE.Mesh(new THREE.BoxGeometry(0.50, 0.025, 0.38), materials.stainlessSteel);
+      midShelf.position.y = 0.46;
+      midShelf.castShadow = true;
+      group.add(midShelf);
+
+      // سطح العربة العلوي الذي يحمل جهاز الكي Schuco 120
+      const standBase = new THREE.Mesh(new THREE.BoxGeometry(0.56, 0.035, 0.44), materials.stainlessSteel);
+      standBase.position.y = cartY;
       standBase.castShadow = true;
+      standBase.receiveShadow = true;
       group.add(standBase);
 
-      const standPole = new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.022, 0.78, 16), materials.chrome);
-      standPole.position.y = 0.42;
-      group.add(standPole);
+      const deckTopY = cartY + 0.018;
 
-      const esuBody = new THREE.Mesh(new THREE.BoxGeometry(0.38, 0.24, 0.32), materials.medicalWhite);
-      esuBody.position.y = 0.92;
+      // الهيكل الرئيسي لجهاز الكي Schuco 120 بلون أبيض فوق العربة
+      const esuBody = new THREE.Mesh(new THREE.BoxGeometry(0.46, 0.145, 0.34), materials.medicalWhite);
+      esuBody.position.set(0.02, deckTopY + 0.0725, -0.02);
       esuBody.castShadow = true;
+      esuBody.receiveShadow = true;
       group.add(esuBody);
 
-      const esuDisplay = new THREE.Mesh(
-        new THREE.PlaneGeometry(0.32, 0.14),
-        new THREE.MeshBasicMaterial({ color: 0x0f172a })
+      // شعار علوي صغير على غطاء الجهاز
+      const topLogo = new THREE.Mesh(
+        new THREE.BoxGeometry(0.045, 0.004, 0.045),
+        new THREE.MeshStandardMaterial({ color: 0x1e3a8a, roughness: 0.3 })
       );
-      esuDisplay.position.set(0, 0.95, 0.162);
-      group.add(esuDisplay);
+      topLogo.position.set(-0.02, deckTopY + 0.147, -0.04);
+      group.add(topLogo);
 
-      const cutBar = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.04, 0.005), new THREE.MeshBasicMaterial({ color: 0xfacc15 }));
-      cutBar.position.set(-0.07, 0.96, 0.165);
-      group.add(cutBar);
+      // الواجهة الأمامية لجهاز Schuco 120 (شاشة CUT الصفراء 006 و ENDO الزرقاء 012)
+      const esuFrontPanel = new THREE.Mesh(
+        new THREE.PlaneGeometry(0.45, 0.14),
+        new THREE.MeshBasicMaterial({ map: createSchuco120PanelTexture() })
+      );
+      esuFrontPanel.position.set(0.02, deckTopY + 0.0725, 0.151);
+      group.add(esuFrontPanel);
 
-      const coagBar = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.04, 0.005), new THREE.MeshBasicMaterial({ color: 0x38bdf8 }));
-      coagBar.position.set(0.07, 0.96, 0.165);
-      group.add(coagBar);
+      // المقابض الدوارة أسفل شاشة CUT وأسفل شاشة ENDO
+      [-0.125, -0.025].forEach((kx) => {
+        const knob = new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.024, 0.022, 20), rotaryDialMat);
+        knob.rotation.x = Math.PI / 2;
+        knob.position.set(kx, deckTopY + 0.036, 0.162);
+        knob.castShadow = true;
+        group.add(knob);
+      });
 
-      const footswitch = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.045, 0.18), materials.blackPad);
-      footswitch.position.set(-0.22, 0.023, 0.26);
-      footswitch.rotation.y = 0.35;
+      // قلم الكي الجراحي الأزرق موضوع على سطح العربة بوضوح مع زرّي القطع والتخثير والإبرة المعدنية
+      const pencilGroup = new THREE.Group();
+      pencilGroup.position.set(-0.08, deckTopY + 0.015, 0.195);
+      pencilGroup.rotation.y = -0.18;
+
+      const pencilBody = new THREE.Mesh(new THREE.CylinderGeometry(0.011, 0.013, 0.15, 16), blueCableMat);
+      pencilBody.rotation.z = Math.PI / 2;
+      pencilBody.castShadow = true;
+      pencilGroup.add(pencilBody);
+
+      const cutBtn = new THREE.Mesh(
+        new THREE.BoxGeometry(0.018, 0.007, 0.012),
+        new THREE.MeshStandardMaterial({ color: 0xfacc15, roughness: 0.35 })
+      );
+      cutBtn.position.set(0.01, 0.013, 0);
+      pencilGroup.add(cutBtn);
+
+      const coagBtn = new THREE.Mesh(
+        new THREE.BoxGeometry(0.018, 0.007, 0.012),
+        new THREE.MeshStandardMaterial({ color: 0x1d4ed8, roughness: 0.35 })
+      );
+      coagBtn.position.set(-0.015, 0.013, 0);
+      pencilGroup.add(coagBtn);
+
+      const electrodeTip = new THREE.Mesh(new THREE.ConeGeometry(0.004, 0.045, 12), materials.chrome);
+      electrodeTip.rotation.z = -Math.PI / 2;
+      electrodeTip.position.set(0.095, 0, 0);
+      pencilGroup.add(electrodeTip);
+
+      group.add(pencilGroup);
+
+      // كابل قلم الكي الأزرق الملتف فوق العربة نحو المنفذ الأمامي
+      const pencilCordCurve = new THREE.CatmullRomCurve3([
+        new THREE.Vector3(-0.15, deckTopY + 0.008, 0.195),
+        new THREE.Vector3(-0.09, deckTopY + 0.006, 0.175),
+        new THREE.Vector3(-0.03, deckTopY + 0.018, 0.165),
+        new THREE.Vector3(0.03, deckTopY + 0.006, 0.175),
+        new THREE.Vector3(0.065, deckTopY + 0.045, 0.155),
+        new THREE.Vector3(0.065, deckTopY + 0.036, 0.15)
+      ]);
+      const pencilCord = new THREE.Mesh(new THREE.TubeGeometry(pencilCordCurve, 28, 0.0065, 8, false), blueCableMat);
+      pencilCord.castShadow = true;
+      group.add(pencilCord);
+
+      // دواسة القدم السوداء موضوعة على الرف الوسطي للعربة مع كابلها الأسود
+      const footswitch = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.038, 0.16), materials.blackPad);
+      footswitch.position.set(-0.12, 0.473 + 0.019, 0.04);
+      footswitch.rotation.y = 0.22;
       footswitch.castShadow = true;
       group.add(footswitch);
 
-      const returnPad = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.012, 0.16), materials.medicalBlue);
-      returnPad.position.set(0.18, 0.007, 0.28);
-      returnPad.rotation.y = -0.2;
+      const pedalPlate = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.014, 0.11), materials.blackPad);
+      pedalPlate.position.set(-0.12, 0.473 + 0.042, 0.04);
+      pedalPlate.rotation.set(-0.18, 0.22, 0);
+      group.add(pedalPlate);
+
+      const footCableCurve = new THREE.CatmullRomCurve3([
+        new THREE.Vector3(-0.12, 0.49, -0.03),
+        new THREE.Vector3(-0.11, 0.62, -0.10),
+        new THREE.Vector3(-0.10, 0.75, -0.15),
+        new THREE.Vector3(-0.10, deckTopY + 0.036, -0.18)
+      ]);
+      const footCable = new THREE.Mesh(new THREE.TubeGeometry(footCableCurve, 20, 0.006, 8, false), materials.blackPad);
+      group.add(footCable);
+
+      // لوحة التأريض البيضاء (Patient Return Pad) موضوعة على سطح العربة يمين الجهاز مع كابلها الأزرق
+      const returnPad = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.01, 0.18), materials.medicalWhite);
+      returnPad.position.set(0.17, deckTopY + 0.005, 0.17);
+      returnPad.rotation.y = -0.12;
+      returnPad.castShadow = true;
+      returnPad.receiveShadow = true;
       group.add(returnPad);
+
+      const padConnector = new THREE.Mesh(new THREE.BoxGeometry(0.038, 0.018, 0.055), blueCableMat);
+      padConnector.position.set(0.16, deckTopY + 0.014, 0.07);
+      padConnector.rotation.y = -0.12;
+      group.add(padConnector);
+
+      const padCableCurve = new THREE.CatmullRomCurve3([
+        new THREE.Vector3(0.16, deckTopY + 0.014, 0.04),
+        new THREE.Vector3(0.14, deckTopY + 0.055, 0.09),
+        new THREE.Vector3(0.12, deckTopY + 0.065, 0.14),
+        new THREE.Vector3(0.11, deckTopY + 0.036, 0.15)
+      ]);
+      const padCable = new THREE.Mesh(new THREE.TubeGeometry(padCableCurve, 22, 0.0065, 8, false), blueCableMat);
+      padCable.castShadow = true;
+      group.add(padCable);
 
       scene.add(group);
       interactiveGroups['esu_diathermy_unit'] = group;
@@ -2764,6 +3058,7 @@
     let showPins = true;
     let showPatient = true;
     let showZones = false;
+    let showServices = false;
 
     OR_COMPONENTS_DATA.forEach((part, index) => {
       const opt = document.createElement('option');
@@ -2979,6 +3274,15 @@
       document.getElementById('zones-btn-text').textContent = showZones
         ? 'إخفاء المناطق'
         : 'مناطق التعقيم';
+    });
+
+    document.getElementById('btn-toggle-services').addEventListener('click', () => {
+      showServices = !showServices;
+      if (servicesOverlayGroup) servicesOverlayGroup.visible = showServices;
+      document.getElementById('services-legend').classList.toggle('hidden', !showServices);
+      document.getElementById('services-btn-text').textContent = showServices
+        ? 'إخفاء الغازات والخلوص'
+        : 'خطوط الغازات والخلوص';
     });
 
     document.querySelectorAll('.screen-mode-btn').forEach(btn => {
